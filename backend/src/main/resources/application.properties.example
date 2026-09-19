@@ -1,5 +1,5 @@
-spring.datasource.url=jdbc:postgresql://localhost:5432/shubusdb
-spring.datasource.username=shubususer
+spring.datasource.url=jdbc:postgresql://YOUR_NEON_HOST/neondb?sslmode=require
+spring.datasource.username=shubus_dev
 spring.datasource.password=CHANGE_ME
 
 spring.jpa.hibernate.ddl-auto=update
