@@ -1,0 +1,21 @@
+# Flutter
+frontend/build/
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/android/.gradle/
+frontend/android/local.properties
+
+# Spring Boot
+backend/target/
+backend/src/main/resources/application.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Environment
+.env
+*.env
