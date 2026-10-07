@@ -10,6 +10,4 @@ public interface StudentTransportProfileRepository
         extends JpaRepository<StudentTransportProfile, Long> {
 
     Optional<StudentTransportProfile> findByStudentId(Long studentId);
-
-    Optional<StudentTransportProfile> findByStudentIdAndActiveTrue(Long studentId);
 }

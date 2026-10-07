@@ -18,14 +18,14 @@ public class StudentTransportProfile {
     @Column(name = "student_id", nullable = false, unique = true)
     private Long studentId;
 
-    @Column(name = "morning_bus_number", nullable = false)
-    private String morningBusNumber;
+    @Column(name = "morning_route_number", nullable = false)
+    private String morningRouteNumber;
+
+    @Column(name = "morning_route_name", nullable = false)
+    private String morningRouteName;
 
     @Column(name = "ac_type", nullable = false)
     private String acType;
-
-    @Column(nullable = false)
-    private Boolean active = true;
 
     public StudentTransportProfile() {
     }
@@ -46,12 +46,20 @@ public class StudentTransportProfile {
         this.studentId = studentId;
     }
 
-    public String getMorningBusNumber() {
-        return morningBusNumber;
+    public String getMorningRouteNumber() {
+        return morningRouteNumber;
     }
 
-    public void setMorningBusNumber(String morningBusNumber) {
-        this.morningBusNumber = morningBusNumber;
+    public void setMorningRouteNumber(String morningRouteNumber) {
+        this.morningRouteNumber = morningRouteNumber;
+    }
+
+    public String getMorningRouteName() {
+        return morningRouteName;
+    }
+
+    public void setMorningRouteName(String morningRouteName) {
+        this.morningRouteName = morningRouteName;
     }
 
     public String getAcType() {
@@ -60,13 +68,5 @@ public class StudentTransportProfile {
 
     public void setAcType(String acType) {
         this.acType = acType;
-    }
-
-    public Boolean getActive() {
-        return active;
-    }
-
-    public void setActive(Boolean active) {
-        this.active = active;
     }
 }

@@ -1,14 +1,14 @@
 package com.shubus.backend.repository;
 
-import com.shubus.backend.model.Route;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
-import java.util.Optional;
+import com.shubus.backend.model.Route;
 
 public interface RouteRepository extends JpaRepository<Route, Long> {
 
-    Optional<Route> findByName(String name);
+    Optional<Route> findByRouteNumber(String routeNumber);
 
-    List<Route> findByActiveTrue();
+    boolean existsByRouteNumber(String routeNumber);
 }

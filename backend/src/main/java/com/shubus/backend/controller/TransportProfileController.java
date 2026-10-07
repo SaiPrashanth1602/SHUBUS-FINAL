@@ -39,19 +39,18 @@ public class TransportProfileController {
                 ));
 
         StudentTransportProfile profile =
-                profileRepository.findByStudentIdAndActiveTrue(
-                        student.getId()
-                ).orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Transport profile not found"
-                ));
+                profileRepository.findByStudentId(student.getId())
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Transport profile not found"
+                        ));
 
         return new TransportProfileResponse(
                 student.getRegNo(),
                 student.getName(),
-                profile.getMorningBusNumber(),
-                profile.getAcType(),
-                profile.getActive()
+                profile.getMorningRouteNumber(),
+                profile.getMorningRouteName(),
+                profile.getAcType()
         );
     }
 }
