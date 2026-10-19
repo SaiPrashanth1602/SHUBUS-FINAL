@@ -10,7 +10,8 @@ class AfternoonAssignmentScreen extends StatefulWidget {
       _AfternoonAssignmentScreenState();
 }
 
-class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
+class _AfternoonAssignmentScreenState
+    extends State<AfternoonAssignmentScreen> {
   final RouteService routeService = RouteService();
 
   List<RouteModel> routes = [];
@@ -30,6 +31,29 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   }
 
   // ============================================================
+  // ASSIGNMENT DATE RULE
+  // ============================================================
+
+  /// Before 1:45 PM: assignments are for today.
+  /// From 1:45 PM onward: assignments are for tomorrow.
+  DateTime _targetAssignmentDate() {
+    final now = DateTime.now();
+    final cutoff = DateTime(now.year, now.month, now.day, 13, 45);
+
+    if (now.isBefore(cutoff)) {
+      return DateUtils.dateOnly(now);
+    }
+
+    return DateUtils.dateOnly(now.add(const Duration(days: 1)));
+  }
+
+  String _dateLabel(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')} '
+        '${_monthName(date.month)} '
+        '${date.year}';
+  }
+
+  // ============================================================
   // LOAD EVERYTHING
   // ============================================================
 
@@ -39,11 +63,11 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     });
 
     try {
-      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final targetDate = _targetAssignmentDate();
 
       final routeData = await routeService.getRoutes();
 
-      final scheduleData = await routeService.getTomorrowSchedule(tomorrow);
+      final scheduleData = await routeService.getTomorrowSchedule(targetDate);
 
       setState(() {
         routes = routeData;
@@ -61,7 +85,7 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
           }
         }
 
-        // Remove routes that are already assigned tomorrow
+        // Remove routes that are already assigned for the target date
         // from the new-assignment selections.
         for (final bus in schedule) {
           final routeId = bus['routeId'];
@@ -89,15 +113,11 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   }
 
   // ============================================================
-  // TOMORROW DATE
+  // TARGET DATE LABEL
   // ============================================================
 
   String get tomorrowLabel {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-
-    return '${tomorrow.day.toString().padLeft(2, '0')} '
-        '${_monthName(tomorrow.month)} '
-        '${tomorrow.year}';
+    return _dateLabel(_targetAssignmentDate());
   }
 
   String _monthName(int month) {
@@ -124,7 +144,9 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   // ============================================================
 
   List<dynamic> get regularSchedule {
-    return schedule.where((bus) => bus['assignmentType'] == 'REGULAR').toList();
+    return schedule
+        .where((bus) => bus['assignmentType'] == 'REGULAR')
+        .toList();
   }
 
   List<dynamic> get velacherySchedule {
@@ -165,9 +187,9 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to de-assign route: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to de-assign route: $e')),
+      );
     }
   }
 
@@ -286,7 +308,7 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     return routes.where((route) {
       return !selectedVelacheryRoutes.contains(route.id) &&
           !selectedAlandurRoutes.contains(route.id) &&
-          !isAssignedTomorrow(route.id);
+          !isAssignedForTargetDate(route.id);
     }).toList();
   }
 
@@ -294,7 +316,7 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     return routes.where((route) {
       return !selectedRegularRoutes.contains(route.id) &&
           !selectedAlandurRoutes.contains(route.id) &&
-          !isAssignedTomorrow(route.id);
+          !isAssignedForTargetDate(route.id);
     }).toList();
   }
 
@@ -302,11 +324,11 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     return routes.where((route) {
       return !selectedRegularRoutes.contains(route.id) &&
           !selectedVelacheryRoutes.contains(route.id) &&
-          !isAssignedTomorrow(route.id);
+          !isAssignedForTargetDate(route.id);
     }).toList();
   }
 
-  bool isAssignedTomorrow(int routeId) {
+  bool isAssignedForTargetDate(int routeId) {
     return schedule.any((bus) => bus['routeId'] == routeId);
   }
 
@@ -354,11 +376,11 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     });
 
     try {
-      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      final targetDate = _targetAssignmentDate();
 
       if (selectedRegularRoutes.isNotEmpty) {
         await routeService.assignRoutes(
-          date: tomorrow,
+          date: targetDate,
           routeIds: selectedRegularRoutes.toList(),
           assignmentType: 'REGULAR',
         );
@@ -366,7 +388,7 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
 
       if (selectedVelacheryRoutes.isNotEmpty) {
         await routeService.assignRoutes(
-          date: tomorrow,
+          date: targetDate,
           routeIds: selectedVelacheryRoutes.toList(),
           assignmentType: 'SHUTTLE',
           shuttleGroup: 'VELACHERY',
@@ -375,7 +397,7 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
 
       if (selectedAlandurRoutes.isNotEmpty) {
         await routeService.assignRoutes(
-          date: tomorrow,
+          date: targetDate,
           routeIds: selectedAlandurRoutes.toList(),
           assignmentType: 'SHUTTLE',
           shuttleGroup: 'ALANDUR_METRO',
@@ -387,14 +409,16 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Afternoon routes assigned successfully')),
+        const SnackBar(
+          content: Text('Afternoon routes assigned successfully'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to assign routes: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to assign routes: $e')),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -506,10 +530,10 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 // ==================================================
-                // TOMORROW SCHEDULE
+                // TARGET DATE SCHEDULE
                 // ==================================================
                 Text(
-                  'TOMORROW • $tomorrowLabel',
+                  'ASSIGNING FOR • $tomorrowLabel',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -519,11 +543,13 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
                 const SizedBox(height: 10),
 
                 if (schedule.isEmpty)
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(20),
                       child: Center(
-                        child: Text('No routes assigned for tomorrow.'),
+                        child: Text(
+                          'No routes assigned for $tomorrowLabel.',
+                        ),
                       ),
                     ),
                   )
@@ -533,7 +559,10 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
                     buses: regularSchedule,
                   ),
 
-                  scheduleSection(title: 'VELACHERY', buses: velacherySchedule),
+                  scheduleSection(
+                    title: 'VELACHERY',
+                    buses: velacherySchedule,
+                  ),
 
                   scheduleSection(
                     title: 'ALANDUR METRO',
@@ -571,7 +600,9 @@ class _AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
                           )
                         : Text(
                             'ASSIGN SELECTED '

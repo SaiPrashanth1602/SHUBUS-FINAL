@@ -31,8 +31,7 @@ public class StudentBookingController {
             @RequestBody BookingRequest request) {
 
         return ResponseEntity.ok(
-                bookingService.createBooking(request)
-        );
+                bookingService.createBooking(request));
     }
 
     @GetMapping("/{regNo}/bookings")
@@ -40,9 +39,16 @@ public class StudentBookingController {
             @PathVariable String regNo,
             @RequestParam LocalDate date) {
 
-        return ResponseEntity.ok(
-                bookingService.getBooking(regNo, date)
-        );
+        try {
+            return ResponseEntity.ok(
+                    bookingService.getBooking(regNo, date));
+        } catch (RuntimeException error) {
+            if ("No booking found".equals(error.getMessage())) {
+                return ResponseEntity.notFound().build();
+            }
+
+            throw error;
+        }
     }
 
     @DeleteMapping("/{regNo}/bookings/{bookingId}")

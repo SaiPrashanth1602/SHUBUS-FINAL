@@ -19,7 +19,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   bool isLoading = false;
   bool hidePassword = true;
 
-  final String apiUrl = 'http://192.168.0.2:8081';
+  final String apiUrl = 'http://192.168.1.5:8081';
 
   Future<void> loginAdmin() async {
     final empId = empIdController.text.trim();

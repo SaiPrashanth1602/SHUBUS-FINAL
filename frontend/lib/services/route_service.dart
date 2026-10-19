@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/route_model.dart';
 
 class RouteService {
-  final String apiUrl = 'http://192.168.0.2:8081';
+  final String apiUrl = 'http://192.168.1.5:8081';
 
   Future<List<RouteModel>> getRoutes() async {
     final response = await http.get(Uri.parse('$apiUrl/api/admin/routes'));
