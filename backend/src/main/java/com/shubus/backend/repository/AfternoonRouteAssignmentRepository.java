@@ -13,4 +13,8 @@ public interface AfternoonRouteAssignmentRepository
     List<AfternoonRouteAssignment> findByAssignmentDate(
             LocalDate assignmentDate
     );
+
+    boolean existsByAssignmentDateAndRoute_Id(
+            LocalDate assignmentDate, Long routeId
+    );
 }

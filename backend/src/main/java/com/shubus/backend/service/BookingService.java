@@ -4,8 +4,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.shubus.backend.dto.BookingRequest;
 import com.shubus.backend.dto.BookingResponse;
@@ -13,80 +15,166 @@ import com.shubus.backend.model.AfternoonRouteAssignment;
 import com.shubus.backend.model.Booking;
 import com.shubus.backend.model.Route;
 import com.shubus.backend.model.Student;
+import com.shubus.backend.model.StudentTransportProfile;
 import com.shubus.backend.repository.AfternoonRouteAssignmentRepository;
 import com.shubus.backend.repository.BookingRepository;
+import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.repository.StudentRepository;
+import com.shubus.backend.repository.StudentTransportProfileRepository;
 import com.shubus.backend.util.BookingTimeRules;
 import com.shubus.backend.util.SeatLayout;
+
 @Service
 public class BookingService {
 
     private final BookingRepository bookingRepository;
     private final StudentRepository studentRepository;
     private final AfternoonRouteAssignmentRepository assignmentRepository;
+    private final StudentTransportProfileRepository profileRepository;
+    private final RouteRepository routeRepository;
 
     public BookingService(
             BookingRepository bookingRepository,
             StudentRepository studentRepository,
-            AfternoonRouteAssignmentRepository assignmentRepository) {
+            AfternoonRouteAssignmentRepository assignmentRepository,
+            StudentTransportProfileRepository profileRepository,
+            RouteRepository routeRepository) {
 
         this.bookingRepository = bookingRepository;
         this.studentRepository = studentRepository;
         this.assignmentRepository = assignmentRepository;
+        this.profileRepository = profileRepository;
+        this.routeRepository = routeRepository;
     }
 
+    @Transactional
     public BookingResponse createBooking(BookingRequest request) {
+
+        if (request == null
+                || request.regNo() == null
+                || request.assignmentId() == null
+                || request.bookingDate() == null
+                || request.seatNumber() == null) {
+
+            throw new IllegalArgumentException(
+                    "Registration number, assignment, date and seat are required");
+        }
 
         Student student = studentRepository
                 .findByRegNo(request.regNo())
-                .orElseThrow(() -> new RuntimeException("Student not found"));
+                .orElseThrow(() ->
+                        new RuntimeException("Student not found"));
 
-        AfternoonRouteAssignment assignment = assignmentRepository
-                .findById(request.assignmentId())
-                .orElseThrow(() -> new RuntimeException("Assignment not found"));
+        if (!Boolean.TRUE.equals(student.getActive())) {
+            throw new RuntimeException(
+                    "Student account is inactive");
+        }
 
-        if (!assignment.getAssignmentDate().equals(request.bookingDate())) {
-    throw new RuntimeException("Booking date does not match assignment date");
+        StudentTransportProfile profile =
+                profileRepository.findByStudentId(student.getId())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Transport profile not found"));
+
+        Route morningRoute =
+                routeRepository.findByRouteNumber(
+                        profile.getMorningRouteNumber())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Morning route not found"));
+
+        AfternoonRouteAssignment assignment =
+                assignmentRepository.findById(
+                        request.assignmentId())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Assignment not found"));
+
+        Route afternoonRoute = assignment.getRoute();
+
+        // The requested date must match the actual assignment date.
+        if (!assignment.getAssignmentDate()
+                .equals(request.bookingDate())) {
+
+            throw new RuntimeException(
+                    "Booking date does not match assignment date");
+        }
+
+        if (!BookingTimeRules.isBookingOpen(
+                request.bookingDate())) {
+
+            throw new RuntimeException(
+                    "Booking is currently closed");
+        }
+
+        // Validate the selected seat.
+        String seat = request.seatNumber().trim().toUpperCase();
+
+        if (!SeatLayout.isValidSeat(seat)) {
+            throw new RuntimeException("Invalid seat");
+        }
+
+        if (SeatLayout.isFacultySeat(seat)) {
+            throw new RuntimeException(
+                    "Faculty seat cannot be booked");
+        }
+
+        if ("GIRL".equalsIgnoreCase(student.getGender())
+                && !SeatLayout.isGirlsSeat(seat)) {
+
+            throw new RuntimeException(
+                    "Girls can only book girls seats");
+        }
+
+        if ("BOY".equalsIgnoreCase(student.getGender())
+                && !SeatLayout.isBoysSeat(seat)) {
+
+            throw new RuntimeException(
+                    "Boys can only book boys seats");
+        }
+
+        // AC/Non-AC must match the student's transport profile.
+        if (!sameValue(
+                profile.getAcType(),
+                afternoonRoute.getAcType())) {
+
+            throw new RuntimeException(
+                    "Selected route does not match your AC/Non-AC profile");
+        }
+
+        // Regular assignments must be eligible for the morning route.
+        if (!"SHUTTLE".equalsIgnoreCase(
+                assignment.getAssignmentType())) {
+
+            String[] allowedRoutes = morningRoute.getAllowedRoutes();
+
+            if (!contains(
+                allowedRoutes,
+                afternoonRoute.getRouteCode())) {
+
+                throw new RuntimeException(
+                    "Your morning route is not eligible for this afternoon route");
 }
-
-if (!BookingTimeRules.isBookingOpen(request.bookingDate())) {
-    throw new RuntimeException("Booking is currently closed");
-}
-
-if (!SeatLayout.isValidSeat(request.seatNumber())) {
-    throw new RuntimeException("Invalid seat");
-}
-
-if (SeatLayout.isFacultySeat(request.seatNumber())) {
-    throw new RuntimeException("Faculty seat cannot be booked");
-}
-
-if ("GIRL".equals(student.getGender())
-        && !SeatLayout.isGirlsSeat(request.seatNumber())) {
-    throw new RuntimeException("Girls can only book girls seats");
-}
-
-if ("BOY".equals(student.getGender())
-        && !SeatLayout.isBoysSeat(request.seatNumber())) {
-    throw new RuntimeException("Boys can only book boys seats");
-}
-
-if (bookingRepository
-        .findByStudentIdAndBookingDate(
-                student.getId(),
-                request.bookingDate())
-        .isPresent()) {
-
-    throw new RuntimeException("Student already has a booking for this date");
-}
-
+            }
         
 
+        // Enforce one booking per student per date.
+        if (bookingRepository
+                .findByStudentIdAndBookingDate(
+                        student.getId(),
+                        request.bookingDate())
+                .isPresent()) {
+
+            throw new RuntimeException(
+                    "Student already has a booking for this date");
+        }
+
+        // Enforce seat uniqueness before attempting the insert.
         if (bookingRepository
                 .existsByAfternoonAssignmentIdAndBookingDateAndSeatNumber(
-                        request.assignmentId(),
+                        assignment.getId(),
                         request.bookingDate(),
-                        request.seatNumber())) {
+                        seat)) {
 
             throw new RuntimeException("Seat already booked");
         }
@@ -96,66 +184,79 @@ if (bookingRepository
         booking.setStudentId(student.getId());
         booking.setAfternoonAssignment(assignment);
         booking.setBookingDate(request.bookingDate());
-        booking.setSeatNumber(request.seatNumber());
-        booking.setBookedAt(LocalDateTime.now());
+        booking.setSeatNumber(seat);
+        booking.setBookedAt(
+                LocalDateTime.now(ZoneId.of("Asia/Kolkata")));
 
-        Booking saved = bookingRepository.save(booking);
+        /*
+         * Database unique constraints remain essential.
+         * The pre-checks above improve error messages, but concurrent
+         * requests can still race; PostgreSQL must enforce uniqueness.
+         */
+        Booking saved = bookingRepository.saveAndFlush(booking);
 
         return toResponse(saved, student, assignment);
     }
 
+    @Transactional
     public void cancelBooking(String regNo, Long bookingId) {
 
-    Student student = studentRepository
-            .findByRegNo(regNo)
-            .orElseThrow(() -> new RuntimeException("Student not found"));
+        Student student = studentRepository
+                .findByRegNo(regNo)
+                .orElseThrow(() ->
+                        new RuntimeException("Student not found"));
 
-    Booking booking = bookingRepository
-            .findById(bookingId)
-            .orElseThrow(() -> new RuntimeException("Booking not found"));
+        Booking booking = bookingRepository
+                .findById(bookingId)
+                .orElseThrow(() ->
+                        new RuntimeException("Booking not found"));
 
-    if (!booking.getStudentId().equals(student.getId())) {
-        throw new RuntimeException("Booking does not belong to this student");
+        if (!booking.getStudentId().equals(student.getId())) {
+            throw new RuntimeException(
+                    "Booking does not belong to this student");
+        }
+
+        ZoneId indiaZone = ZoneId.of("Asia/Kolkata");
+
+        ZonedDateTime now = ZonedDateTime.now(indiaZone);
+
+        ZonedDateTime cancellationDeadline =
+                booking.getBookingDate()
+                        .atTime(12, 30)
+                        .atZone(indiaZone);
+
+        if (!now.isBefore(cancellationDeadline)) {
+            throw new RuntimeException(
+                    "Cancellation is closed");
+        }
+
+        bookingRepository.delete(booking);
     }
 
-    ZoneId indiaZone = ZoneId.of("Asia/Kolkata");
+    @Transactional(readOnly = true)
+    public BookingResponse getBooking(
+            String regNo,
+            LocalDate bookingDate) {
 
-    ZonedDateTime now = ZonedDateTime.now(indiaZone);
+        Student student = studentRepository
+                .findByRegNo(regNo)
+                .orElseThrow(() ->
+                        new RuntimeException("Student not found"));
 
-    ZonedDateTime cancellationDeadline =
-            booking.getBookingDate()
-                    .atTime(12, 30)
-                    .atZone(indiaZone);
+        Booking booking = bookingRepository
+                .findByStudentIdAndBookingDate(
+                        student.getId(),
+                        bookingDate)
+                .orElseThrow(() ->
+                        new RuntimeException("No booking found"));
 
-    if (!now.isBefore(cancellationDeadline)) {
-        throw new RuntimeException("Cancellation is closed");
+        return toResponse(
+                booking,
+                student,
+                booking.getAfternoonAssignment());
     }
 
-    bookingRepository.delete(booking);
-}
-
-public BookingResponse getBooking(
-        String regNo,
-        LocalDate bookingDate) {
-
-    Student student = studentRepository
-            .findByRegNo(regNo)
-            .orElseThrow(() -> new RuntimeException("Student not found"));
-
-    Booking booking = bookingRepository
-            .findByStudentIdAndBookingDate(
-                    student.getId(),
-                    bookingDate)
-            .orElseThrow(() -> new RuntimeException("No booking found"));
-
-    return toResponse(
-            booking,
-            student,
-            booking.getAfternoonAssignment()
-    );
-}
-
-private BookingResponse toResponse(
+    private BookingResponse toResponse(
             Booking booking,
             Student student,
             AfternoonRouteAssignment assignment) {
@@ -173,7 +274,33 @@ private BookingResponse toResponse(
                 assignment.getShuttleGroup(),
                 booking.getBookingDate(),
                 booking.getSeatNumber(),
-                booking.getBookedAt()
-        );
+                booking.getBookedAt());
+    }
+
+    private boolean contains(
+            String[] allowedRoutes,
+            String routeNumber) {
+
+        if (allowedRoutes == null || routeNumber == null) {
+            return false;
+        }
+
+        for (String allowedRoute : allowedRoutes) {
+            if (allowedRoute != null
+                    && allowedRoute.trim().equalsIgnoreCase(
+                            routeNumber.trim())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean sameValue(String first, String second) {
+        return first != null
+                && second != null
+                && Objects.equals(
+                        first.trim().toUpperCase(),
+                        second.trim().toUpperCase());
     }
 }

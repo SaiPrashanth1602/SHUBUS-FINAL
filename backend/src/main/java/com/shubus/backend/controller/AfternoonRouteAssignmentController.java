@@ -1,9 +1,15 @@
 package com.shubus.backend.controller;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +30,15 @@ import com.shubus.backend.repository.RouteRepository;
 @RequestMapping("/api/admin/afternoon-routes")
 public class AfternoonRouteAssignmentController {
 
+    private static final Set<String> LEGACY_SHUTTLE_GROUPS = Set.of(
+            "ALANDUR_METRO", "VELACHERY"
+    );
+
+    private static final Set<String> SHUTTLE_SLOTS = Set.of(
+            "A1", "A2", "A3", "A4", "A5",
+            "V1", "V2", "V3", "S1", "T1"
+    );
+
     private final AfternoonRouteAssignmentRepository assignmentRepository;
     private final RouteRepository routeRepository;
 
@@ -37,122 +52,152 @@ public class AfternoonRouteAssignmentController {
     @GetMapping
     public List<AfternoonRouteAssignmentResponse> getAssignments(
             @RequestParam LocalDate date) {
-
         return assignmentRepository.findByAssignmentDate(date)
                 .stream()
                 .map(this::toResponse)
                 .toList();
     }
-@PostMapping("/bulk")
-public ResponseEntity<List<AfternoonRouteAssignmentResponse>> createBulkAssignments(
-        @RequestBody AfternoonAssignmentRequest request) {
 
-    if (!request.assignmentType().equals("REGULAR")
-            && !request.assignmentType().equals("SHUTTLE")) {
-        return ResponseEntity.badRequest().build();
-    }
+    /**
+     * Saves a whole batch atomically. Existing assignments and the database's
+     * (assignment_date, route_id) uniqueness rule are checked before writing.
+     */
+    @Transactional
+    @PostMapping("/bulk")
+    public ResponseEntity<?> createBulkAssignments(
+            @RequestBody AfternoonAssignmentRequest request) {
 
-    if (request.assignmentType().equals("SHUTTLE")
-            && request.shuttleGroup() == null) {
-        return ResponseEntity.badRequest().build();
-    }
+        String validationError = validateRequest(
+                request == null ? null : request.date(),
+                request == null ? null : request.routeIds(),
+                request == null ? null : request.assignmentType(),
+                request == null ? null : request.shuttleGroup());
 
-    if (request.assignmentType().equals("REGULAR")
-            && request.shuttleGroup() != null) {
-        return ResponseEntity.badRequest().build();
-    }
-
-    List<AfternoonRouteAssignmentResponse> responses =
-            new java.util.ArrayList<>();
-
-    for (Long routeId : request.routeIds()) {
-
-        Route route = routeRepository.findById(routeId)
-                .orElse(null);
-
-        if (route == null) {
-            return ResponseEntity.notFound().build();
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", validationError));
         }
 
-        AfternoonRouteAssignment assignment =
-                new AfternoonRouteAssignment();
+        List<Long> routeIds = request.routeIds();
+        if (new HashSet<>(routeIds).size() != routeIds.size()) {
+            return ResponseEntity.badRequest().body(
+                    java.util.Map.of("error", "routeIds contains duplicates"));
+        }
 
-        assignment.setRoute(route);
-        assignment.setAssignmentDate(request.date());
-        assignment.setAssignmentType(request.assignmentType());
-        assignment.setShuttleGroup(request.shuttleGroup());
+        List<Route> routes = new ArrayList<>();
+        for (Long routeId : routeIds) {
+            if (routeId == null) {
+                return ResponseEntity.badRequest().body(
+                        java.util.Map.of("error", "routeIds cannot contain null"));
+            }
+            Route route = routeRepository.findById(routeId).orElse(null);
+            if (route == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                        java.util.Map.of("error", "Route not found: " + routeId));
+            }
+            if (assignmentRepository.existsByAssignmentDateAndRoute_Id(
+                    request.date(), routeId)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        java.util.Map.of("error", "Route " + routeId +
+                                " is already assigned for " + request.date()));
+            }
+            routes.add(route);
+        }
 
-        AfternoonRouteAssignment saved =
-                assignmentRepository.save(assignment);
+        List<AfternoonRouteAssignmentResponse> responses = new ArrayList<>();
+        for (Route route : routes) {
+            AfternoonRouteAssignment assignment = new AfternoonRouteAssignment();
+            assignment.setRoute(route);
+            assignment.setAssignmentDate(request.date());
+            assignment.setAssignmentType(normalizeType(request.assignmentType()));
+            assignment.setShuttleGroup(normalizeGroup(request.shuttleGroup()));
+            responses.add(toResponse(assignmentRepository.save(assignment)));
+        }
 
-        responses.add(toResponse(saved));
+        return ResponseEntity.ok(responses);
     }
 
-    return ResponseEntity.ok(responses);
-}
+    @Transactional
     @PostMapping
-    public ResponseEntity<AfternoonRouteAssignmentResponse> createAssignment(
+    public ResponseEntity<?> createAssignment(
             @RequestParam Long routeId,
             @RequestParam LocalDate date,
             @RequestParam String assignmentType,
             @RequestParam(required = false) String shuttleGroup) {
 
-        if (!assignmentType.equals("REGULAR")
-                && !assignmentType.equals("SHUTTLE")) {
-            return ResponseEntity.badRequest().build();
+        String validationError = validateRequest(
+                date, List.of(routeId), assignmentType, shuttleGroup);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(
+                    java.util.Map.of("error", validationError));
         }
 
-        if (assignmentType.equals("SHUTTLE")
-                && shuttleGroup == null) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        if (assignmentType.equals("REGULAR")
-                && shuttleGroup != null) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        Route route = routeRepository.findById(routeId)
-                .orElse(null);
-
+        Route route = routeRepository.findById(routeId).orElse(null);
         if (route == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    java.util.Map.of("error", "Route not found: " + routeId));
         }
 
-        AfternoonRouteAssignment assignment =
-                new AfternoonRouteAssignment();
+        if (assignmentRepository.existsByAssignmentDateAndRoute_Id(date, routeId)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    java.util.Map.of("error", "Route is already assigned for " + date));
+        }
 
+        AfternoonRouteAssignment assignment = new AfternoonRouteAssignment();
         assignment.setRoute(route);
         assignment.setAssignmentDate(date);
-        assignment.setAssignmentType(assignmentType);
-        assignment.setShuttleGroup(shuttleGroup);
+        assignment.setAssignmentType(normalizeType(assignmentType));
+        assignment.setShuttleGroup(normalizeGroup(shuttleGroup));
 
-        AfternoonRouteAssignment saved =
-                assignmentRepository.save(assignment);
-
-        return ResponseEntity.ok(toResponse(saved));
+        return ResponseEntity.ok(toResponse(assignmentRepository.save(assignment)));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteAssignment(
-            @PathVariable Long id) {
-
+    public ResponseEntity<Void> deleteAssignment(@PathVariable Long id) {
         if (!assignmentRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
-
         assignmentRepository.deleteById(id);
-
         return ResponseEntity.noContent().build();
     }
 
-    
+    private String validateRequest(
+            LocalDate date, List<Long> routeIds, String assignmentType, String shuttleGroup) {
+        if (date == null) return "date is required";
+        if (routeIds == null || routeIds.isEmpty()) return "At least one routeId is required";
+        if (assignmentType == null) return "assignmentType is required";
+
+        String type = assignmentType.trim().toUpperCase(Locale.ROOT);
+        if (!type.equals("REGULAR") && !type.equals("SHUTTLE")) {
+            return "assignmentType must be REGULAR or SHUTTLE";
+        }
+
+        if (type.equals("REGULAR") && shuttleGroup != null && !shuttleGroup.isBlank()) {
+            return "REGULAR assignments cannot have a shuttleGroup";
+        }
+        if (type.equals("SHUTTLE")) {
+            if (shuttleGroup == null || shuttleGroup.isBlank()) {
+                return "SHUTTLE assignments require a shuttleGroup or slot";
+            }
+            String group = shuttleGroup.trim().toUpperCase(Locale.ROOT);
+            if (!LEGACY_SHUTTLE_GROUPS.contains(group) && !SHUTTLE_SLOTS.contains(group)) {
+                return "Unsupported shuttle group/slot: " + shuttleGroup;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeType(String assignmentType) {
+        return assignmentType.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeGroup(String shuttleGroup) {
+        if (shuttleGroup == null || shuttleGroup.isBlank()) return null;
+        return shuttleGroup.trim().toUpperCase(Locale.ROOT);
+    }
 
     private AfternoonRouteAssignmentResponse toResponse(
             AfternoonRouteAssignment assignment) {
-
         Route route = assignment.getRoute();
-
         return new AfternoonRouteAssignmentResponse(
                 assignment.getId(),
                 route.getId(),

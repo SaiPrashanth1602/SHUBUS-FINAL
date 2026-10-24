@@ -1,22 +1,24 @@
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
-
 import '../models/route_model.dart';
 
 class RouteService {
-  final String apiUrl = 'http://192.168.1.5:8081';
+  final String apiUrl = 'http://192.168.0.6:8081';
+  Map<String, String> get headers => const {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  String date(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<List<RouteModel>> getRoutes() async {
-    final response = await http.get(Uri.parse('$apiUrl/api/admin/routes'));
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load routes');
-    }
-
-    final List<dynamic> data = jsonDecode(response.body);
-
-    return data.map((json) => RouteModel.fromJson(json)).toList();
+    final r = await http.get(Uri.parse('$apiUrl/api/admin/routes'));
+    if (r.statusCode != 200)
+      throw Exception('Load routes failed (${r.statusCode}): ${r.body}');
+    final data = jsonDecode(r.body) as List;
+    return data
+        .map((e) => RouteModel.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
   }
 
   Future<RouteModel> createRoute({
@@ -25,9 +27,9 @@ class RouteService {
     required String acType,
     required List<String> allowedRoutes,
   }) async {
-    final response = await http.post(
+    final r = await http.post(
       Uri.parse('$apiUrl/api/admin/routes'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode({
         'routeNumber': routeNumber,
         'routeName': routeName,
@@ -35,12 +37,9 @@ class RouteService {
         'allowedRoutes': allowedRoutes,
       }),
     );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to create route');
-    }
-
-    return RouteModel.fromJson(jsonDecode(response.body));
+    if (r.statusCode != 200 && r.statusCode != 201)
+      throw Exception('Create route failed (${r.statusCode}): ${r.body}');
+    return RouteModel.fromJson(jsonDecode(r.body));
   }
 
   Future<RouteModel> updateRoute({
@@ -50,9 +49,9 @@ class RouteService {
     required String acType,
     required List<String> allowedRoutes,
   }) async {
-    final response = await http.put(
+    final r = await http.put(
       Uri.parse('$apiUrl/api/admin/routes/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode({
         'routeNumber': routeNumber,
         'routeName': routeName,
@@ -60,22 +59,15 @@ class RouteService {
         'allowedRoutes': allowedRoutes,
       }),
     );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to update route');
-    }
-
-    return RouteModel.fromJson(jsonDecode(response.body));
+    if (r.statusCode != 200)
+      throw Exception('Update route failed (${r.statusCode}): ${r.body}');
+    return RouteModel.fromJson(jsonDecode(r.body));
   }
 
   Future<void> deleteRoute(int id) async {
-    final response = await http.delete(
-      Uri.parse('$apiUrl/api/admin/routes/$id'),
-    );
-
-    if (response.statusCode != 204) {
-      throw Exception('Failed to delete route');
-    }
+    final r = await http.delete(Uri.parse('$apiUrl/api/admin/routes/$id'));
+    if (r.statusCode != 200 && r.statusCode != 204)
+      throw Exception('Delete route failed (${r.statusCode}): ${r.body}');
   }
 
   Future<void> assignRoutes({
@@ -84,68 +76,45 @@ class RouteService {
     required String assignmentType,
     String? shuttleGroup,
   }) async {
-    final formattedDate =
-        '${date.year.toString().padLeft(4, '0')}-'
-        '${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
-
-    final response = await http.post(
+    final r = await http.post(
       Uri.parse('$apiUrl/api/admin/afternoon-routes/bulk'),
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode({
-        'date': formattedDate,
+        'date': this.date(date),
         'routeIds': routeIds,
         'assignmentType': assignmentType,
         'shuttleGroup': shuttleGroup,
       }),
     );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to assign routes: ${response.statusCode}');
-    }
+    if (r.statusCode != 200 && r.statusCode != 201)
+      throw Exception('Assign failed (${r.statusCode}): ${r.body}');
   }
 
-  Future<void> deleteAssignment(int assignmentId) async {
-    final response = await http.delete(
-      Uri.parse('$apiUrl/api/admin/afternoon-routes/$assignmentId'),
+  Future<void> deleteAssignment(int id) async {
+    final r = await http.delete(
+      Uri.parse('$apiUrl/api/admin/afternoon-routes/$id'),
     );
-
-    if (response.statusCode != 200 && response.statusCode != 204) {
-      throw Exception('Failed to de-assign route: ${response.statusCode}');
-    }
+    if (r.statusCode != 200 && r.statusCode != 204)
+      throw Exception('De-assign failed (${r.statusCode}): ${r.body}');
   }
 
-  Future<List<dynamic>> getTomorrowSchedule(DateTime date) async {
-    final formattedDate =
-        '${date.year.toString().padLeft(4, '0')}-'
-        '${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
-
-    final response = await http.get(
-      Uri.parse('$apiUrl/api/admin/schedule?date=$formattedDate'),
+  Future<List<dynamic>> getTomorrowSchedule(DateTime d) async {
+    final r = await http.get(
+      Uri.parse('$apiUrl/api/admin/afternoon-routes?date=${date(d)}'),
     );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load schedule: ${response.statusCode}');
-    }
-
-    return jsonDecode(response.body);
+    if (r.statusCode != 200)
+      throw Exception('Schedule failed (${r.statusCode}): ${r.body}');
+    final data = jsonDecode(r.body);
+    if (data is! List) throw Exception('Unexpected schedule response');
+    return data;
   }
 
-  Future<Map<String, dynamic>> getDashboardOverview(DateTime date) async {
-    final formattedDate =
-        '${date.year.toString().padLeft(4, '0')}-'
-        '${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
-
-    final response = await http.get(
-      Uri.parse('$apiUrl/api/admin/dashboard?date=$formattedDate'),
+  Future<Map<String, dynamic>> getDashboardOverview(DateTime d) async {
+    final r = await http.get(
+      Uri.parse('$apiUrl/api/admin/dashboard?date=${date(d)}'),
     );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load dashboard: ${response.statusCode}');
-    }
-
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    if (r.statusCode != 200)
+      throw Exception('Dashboard failed (${r.statusCode}): ${r.body}');
+    return Map<String, dynamic>.from(jsonDecode(r.body));
   }
 }

@@ -3,8 +3,10 @@ package com.shubus.backend.service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.shubus.backend.dto.StudentAfternoonRouteResponse;
 import com.shubus.backend.model.Route;
@@ -35,23 +37,37 @@ public class StudentAfternoonRouteService {
         this.scheduleRepository = scheduleRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<StudentAfternoonRouteResponse> getAvailableRoutes(
             String regNo,
             LocalDate date) {
 
+        if (date == null) {
+            throw new IllegalArgumentException(
+                    "Booking date is required");
+        }
+
         Student student = studentRepository.findByRegNo(regNo)
-                .orElseThrow(() -> new RuntimeException("Student not found"));
+                .orElseThrow(() ->
+                        new RuntimeException("Student not found"));
+
+        if (!Boolean.TRUE.equals(student.getActive())) {
+            throw new RuntimeException(
+                    "Student account is inactive");
+        }
 
         StudentTransportProfile profile =
                 profileRepository.findByStudentId(student.getId())
                         .orElseThrow(() ->
-                                new RuntimeException("Transport profile not found"));
+                                new RuntimeException(
+                                        "Transport profile not found"));
 
         Route morningRoute =
                 routeRepository.findByRouteNumber(
-                        profile.getMorningRouteNumber()
-                ).orElseThrow(() ->
-                        new RuntimeException("Morning route not found"));
+                        profile.getMorningRouteNumber())
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Morning route not found"));
 
         String[] allowedRoutes = morningRoute.getAllowedRoutes();
 
@@ -63,48 +79,65 @@ public class StudentAfternoonRouteService {
 
         for (Object[] row : rows) {
 
+            Long assignmentId =
+                    ((Number) row[0]).longValue();
+
+            Long routeId =
+                    ((Number) row[1]).longValue();
+
             String routeNumber = (String) row[2];
+            String routeName = (String) row[3];
             String acType = (String) row[4];
             String assignmentType = (String) row[5];
+            String shuttleGroup = (String) row[6];
+            LocalDate assignmentDate = (LocalDate) row[7];
 
-            boolean acMatches =
-                    profile.getAcType().equals(acType);
+            String routeCode = (String) row[8];
 
-            if (!acMatches) {
+            long bookedSeats =
+                ((Number) row[9]).longValue();
+
+            // Transport profile and afternoon route must match.
+            if (!sameValue(profile.getAcType(), acType)) {
                 continue;
             }
 
             boolean eligible;
 
-            if ("SHUTTLE".equals(assignmentType)) {
-                // Shuttle buses bypass morning-route restriction
-                eligible = true;
-            } else {
-                // Regular buses must be allowed for the student's
-                // registered morning route
-                eligible = contains(allowedRoutes, routeNumber);
-            }
+            if ("SHUTTLE".equalsIgnoreCase(assignmentType)) {
+    eligible = true;
+} else {
+    eligible = contains(allowedRoutes, routeCode);
+}
 
             if (!eligible) {
                 continue;
             }
 
-            long bookedSeats = ((Number) row[8]).longValue();
-            int totalSeats = 55;
+            /*
+             * SeatLayout contains 50 valid seats in the current
+             * uploaded backend, including faculty-only seats.
+             *
+             * Keep this count aligned with SeatLayout.
+             */
+            int totalSeats = 50;
+
+            long availableSeats =
+                    Math.max(0L, totalSeats - bookedSeats);
 
             result.add(
                     new StudentAfternoonRouteResponse(
-                            ((Number) row[0]).longValue(),
-                            ((Number) row[1]).longValue(),
+                            assignmentId,
+                            routeId,
                             routeNumber,
-                            (String) row[3],
+                            routeName,
                             acType,
                             assignmentType,
-                            (String) row[6],
-                            (LocalDate) row[7],
+                            shuttleGroup,
+                            assignmentDate,
                             totalSeats,
                             bookedSeats,
-                            totalSeats - (int) bookedSeats
+                            availableSeats
                     )
             );
         }
@@ -112,18 +145,30 @@ public class StudentAfternoonRouteService {
         return result;
     }
 
-    private boolean contains(String[] routes, String routeNumber) {
+    private boolean contains(
+            String[] allowedRoutes,
+            String routeNumber) {
 
-        if (routes == null) {
+        if (allowedRoutes == null || routeNumber == null) {
             return false;
         }
 
-        for (String route : routes) {
-            if (routeNumber.equals(route)) {
+        for (String allowedRoute : allowedRoutes) {
+            if (allowedRoute != null
+                    && allowedRoute.trim().equalsIgnoreCase(
+                            routeNumber.trim())) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private boolean sameValue(String first, String second) {
+        return first != null
+                && second != null
+                && Objects.equals(
+                        first.trim().toUpperCase(),
+                        second.trim().toUpperCase());
     }
 }

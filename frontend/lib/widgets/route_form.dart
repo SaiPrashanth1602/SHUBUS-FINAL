@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-
 import '../models/route_model.dart';
 
 class RouteForm extends StatefulWidget {
   final RouteModel? route;
   final List<RouteModel> allRoutes;
-
   const RouteForm({super.key, this.route, required this.allRoutes});
 
   @override
@@ -13,155 +11,117 @@ class RouteForm extends StatefulWidget {
 }
 
 class _RouteFormState extends State<RouteForm> {
-  final formKey = GlobalKey<FormState>();
-
-  late TextEditingController routeNumberController;
-  late TextEditingController routeNameController;
-
+  final keyForm = GlobalKey<FormState>();
+  late final TextEditingController numberController;
+  late final TextEditingController nameController;
   String acType = 'AC';
-  List<String> allowedRoutes = [];
+  List<String> allowed = [];
 
   @override
   void initState() {
     super.initState();
-
-    routeNumberController = TextEditingController(
-      text: widget.route?.routeNumber ?? '',
-    );
-
-    routeNameController = TextEditingController(
-      text: widget.route?.routeName ?? '',
-    );
-
+    numberController =
+        TextEditingController(text: widget.route?.routeNumber ?? '');
+    nameController =
+        TextEditingController(text: widget.route?.routeName ?? '');
     acType = widget.route?.acType ?? 'AC';
-
-    allowedRoutes = List<String>.from(widget.route?.allowedRoutes ?? []);
+    allowed = List<String>.from(widget.route?.allowedRoutes ?? []);
   }
 
   @override
   void dispose() {
-    routeNumberController.dispose();
-    routeNameController.dispose();
+    numberController.dispose();
+    nameController.dispose();
     super.dispose();
   }
 
   void save() {
-    if (!formKey.currentState!.validate()) {
-      return;
-    }
-
+    if (!keyForm.currentState!.validate()) return;
     Navigator.pop(context, {
-      'routeNumber': routeNumberController.text.trim(),
-      'routeName': routeNameController.text.trim(),
+      'routeNumber': numberController.text.trim(),
+      'routeName': nameController.text.trim(),
       'acType': acType,
-      'allowedRoutes': allowedRoutes,
+      'allowedRoutes': allowed,
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.route != null;
+    final editing = widget.route != null;
+    final choices =
+        widget.allRoutes.where((r) => r.id != widget.route?.id).toList();
 
     return Scaffold(
-      appBar: AppBar(title: Text(isEditing ? 'Edit Route' : 'Add Route')),
+      appBar: AppBar(title: Text(editing ? 'Edit Route' : 'Add Route')),
       body: Form(
-        key: formKey,
+        key: keyForm,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             TextFormField(
-              controller: routeNumberController,
-              keyboardType: TextInputType.number,
+              controller: numberController,
               decoration: const InputDecoration(
                 labelText: 'Route Number',
-                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.tag),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter route number';
-                }
-
-                return null;
-              },
+              validator: (v) => v == null || v.trim().isEmpty
+                  ? 'Enter route number'
+                  : null,
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 14),
             TextFormField(
-              controller: routeNameController,
+              controller: nameController,
               decoration: const InputDecoration(
                 labelText: 'Route Name',
-                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.route_outlined),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter route name';
-                }
-
-                return null;
-              },
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Enter route name' : null,
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 14),
             DropdownButtonFormField<String>(
-              value: acType,
-              decoration: const InputDecoration(
-                labelText: 'AC Type',
-                border: OutlineInputBorder(),
-              ),
+              initialValue: acType,
+              decoration: const InputDecoration(labelText: 'Bus Type'),
               items: const [
                 DropdownMenuItem(value: 'AC', child: Text('AC')),
                 DropdownMenuItem(value: 'NON_AC', child: Text('Non-AC')),
               ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    acType = value;
-                  });
-                }
+              onChanged: (v) {
+                if (v != null) setState(() => acType = v);
               },
             ),
-
-            const SizedBox(height: 24),
-
-            const Text(
-              'Allowed Routes',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
+            const SizedBox(height: 22),
+            const Text('ALLOWED AFTERNOON ROUTES',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: widget.allRoutes.map((route) {
-                final selected = allowedRoutes.contains(route.routeNumber);
-
+              children: choices.map((route) {
                 return FilterChip(
                   label: Text(route.routeNumber),
-                  selected: selected,
-                  onSelected: (value) {
+                  selected: allowed.contains(route.routeNumber),
+                  onSelected: (selected) {
                     setState(() {
-                      if (value) {
-                        allowedRoutes.add(route.routeNumber);
+                      if (selected) {
+                        if (!allowed.contains(route.routeNumber)) {
+                          allowed.add(route.routeNumber);
+                        }
                       } else {
-                        allowedRoutes.remove(route.routeNumber);
+                        allowed.remove(route.routeNumber);
                       }
                     });
                   },
                 );
               }).toList(),
             ),
-
-            const SizedBox(height: 30),
-
+            const SizedBox(height: 26),
             SizedBox(
-              height: 52,
-              child: ElevatedButton.icon(
+              height: 50,
+              child: FilledButton.icon(
                 onPressed: save,
-                icon: const Icon(Icons.save),
-                label: Text(isEditing ? 'UPDATE ROUTE' : 'ADD ROUTE'),
+                icon: const Icon(Icons.save_outlined),
+                label: Text(editing ? 'SAVE CHANGES' : 'CREATE ROUTE'),
               ),
             ),
           ],

@@ -18,6 +18,9 @@ public class Route {
     @Column(name = "route_number", nullable = false, unique = true)
     private String routeNumber;
 
+    @Column(name = "route_code", nullable = false, unique = true)
+    private String routeCode;
+
     @Column(name = "route_name", nullable = false)
     private String routeName;
 
@@ -28,7 +31,7 @@ public class Route {
     private String[] allowedRoutes;
 
     @Column(name = "default_afternoon", nullable = false)
-private boolean defaultAfternoon;
+    private boolean defaultAfternoon;
 
     public Long getId() {
         return id;
@@ -40,6 +43,14 @@ private boolean defaultAfternoon;
 
     public void setRouteNumber(String routeNumber) {
         this.routeNumber = routeNumber;
+    }
+
+    public String getRouteCode() {
+        return routeCode;
+    }
+
+    public void setRouteCode(String routeCode) {
+        this.routeCode = routeCode;
     }
 
     public String getRouteName() {
@@ -67,10 +78,10 @@ private boolean defaultAfternoon;
     }
 
     public boolean isDefaultAfternoon() {
-    return defaultAfternoon;
-}
+        return defaultAfternoon;
+    }
 
-public void setDefaultAfternoon(boolean defaultAfternoon) {
-    this.defaultAfternoon = defaultAfternoon;
-}
+    public void setDefaultAfternoon(boolean defaultAfternoon) {
+        this.defaultAfternoon = defaultAfternoon;
+    }
 }
