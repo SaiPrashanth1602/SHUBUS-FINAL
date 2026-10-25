@@ -15,6 +15,7 @@ import com.shubus.backend.model.Route;
 import com.shubus.backend.model.Student;
 import com.shubus.backend.model.StudentTransportProfile;
 import com.shubus.backend.repository.AfternoonScheduleRepository;
+import com.shubus.backend.repository.BookingRepository;
 import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.repository.StudentRepository;
 import com.shubus.backend.repository.StudentTransportProfileRepository;
@@ -23,157 +24,176 @@ import com.shubus.backend.util.SeatLayout;
 @Service
 public class StudentAfternoonRouteService {
 
-    private final StudentRepository studentRepository;
-    private final StudentTransportProfileRepository profileRepository;
-    private final RouteRepository routeRepository;
-    private final AfternoonScheduleRepository scheduleRepository;
+        private static final int BOY_SEAT_CAPACITY = 31;
+        private static final int GIRL_SEAT_CAPACITY = 19;
 
-    public StudentAfternoonRouteService(
-            StudentRepository studentRepository,
-            StudentTransportProfileRepository profileRepository,
-            RouteRepository routeRepository,
-            AfternoonScheduleRepository scheduleRepository) {
+        private final StudentRepository studentRepository;
+        private final StudentTransportProfileRepository profileRepository;
+        private final RouteRepository routeRepository;
+        private final AfternoonScheduleRepository scheduleRepository;
+        private final BookingRepository bookingRepository;
 
-        this.studentRepository = studentRepository;
-        this.profileRepository = profileRepository;
-        this.routeRepository = routeRepository;
-        this.scheduleRepository = scheduleRepository;
-    }
+        public StudentAfternoonRouteService(
+                        StudentRepository studentRepository,
+                        StudentTransportProfileRepository profileRepository,
+                        RouteRepository routeRepository,
+                        AfternoonScheduleRepository scheduleRepository,
+                        BookingRepository bookingRepository) {
 
-    @Transactional(readOnly = true)
-    public List<StudentAfternoonRouteResponse> getAvailableRoutes(
-            String regNo,
-            LocalDate date) {
-
-        if (date == null) {
-            throw new IllegalArgumentException(
-                    "Booking date is required");
+                this.studentRepository = studentRepository;
+                this.profileRepository = profileRepository;
+                this.routeRepository = routeRepository;
+                this.scheduleRepository = scheduleRepository;
+                this.bookingRepository = bookingRepository;
         }
 
-        Student student = studentRepository.findByRegNo(regNo == null ? "" : regNo.trim())
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND, "Student not found"));
+        @Transactional(readOnly = true)
+        public List<StudentAfternoonRouteResponse> getAvailableRoutes(
+                        String regNo,
+                        LocalDate date) {
 
-        if (!Boolean.TRUE.equals(student.getActive())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "Student account is inactive");
+                if (date == null) {
+                        throw new IllegalArgumentException(
+                                        "Booking date is required");
+                }
+
+                Student student = studentRepository.findByRegNo(
+                                regNo == null ? "" : regNo.trim())
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Student not found"));
+
+                if (!Boolean.TRUE.equals(student.getActive())) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.FORBIDDEN,
+                                        "Student account is inactive");
+                }
+
+                StudentTransportProfile profile = profileRepository.findByStudentId(student.getId())
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Transport profile not found"));
+
+                Route morningRoute = routeRepository.findByRouteNumber(
+                                profile.getMorningRouteNumber())
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Morning route not found"));
+
+                String[] allowedRoutes = morningRoute.getAllowedRoutes();
+
+                String studentGender = student.getGender() == null
+                                ? ""
+                                : student.getGender().trim().toUpperCase();
+
+                boolean isBoy = "BOY".equals(studentGender);
+
+                int studentGenderCapacity = isBoy
+                                ? BOY_SEAT_CAPACITY
+                                : GIRL_SEAT_CAPACITY;
+
+                String studentGenderValue = isBoy ? "BOY" : "GIRL";
+
+                List<Object[]> rows = scheduleRepository.getStudentSchedule(date);
+
+                List<StudentAfternoonRouteResponse> result = new ArrayList<>();
+
+                for (Object[] row : rows) {
+
+                        Long assignmentId = ((Number) row[0]).longValue();
+
+                        Long routeId = ((Number) row[1]).longValue();
+
+                        String routeNumber = (String) row[2];
+                        String routeName = (String) row[3];
+                        String acType = (String) row[4];
+                        String assignmentType = (String) row[5];
+                        String shuttleGroup = (String) row[6];
+                        LocalDate assignmentDate = (LocalDate) row[7];
+
+                        String routeCode = (String) row[8];
+
+                        long bookedSeats = ((Number) row[9]).longValue();
+
+                        boolean eligible;
+
+                        if ("SHUTTLE".equalsIgnoreCase(assignmentType)) {
+                                eligible = true;
+                        } else {
+                                // Transport profile and regular afternoon route must match.
+                                if (!sameValue(profile.getAcType(), acType)) {
+                                        continue;
+                                }
+
+                                eligible = contains(allowedRoutes, routeCode);
+                        }
+
+                        if (!eligible) {
+                                continue;
+                        }
+
+                        /*
+                         * SeatLayout contains 55 valid seats, including faculty-only seats.
+                         *
+                         * Keep this count aligned with SeatLayout.
+                         */
+                        int totalSeats = SeatLayout.getStudentBookableSeatCount();
+
+                        long availableSeats = Math.max(0L, totalSeats - bookedSeats);
+
+                        long genderBookedSeats = bookingRepository.countBookedSeatsByGender(
+                                        assignmentId,
+                                        date,
+                                        studentGenderValue);
+
+                        long availableSeatsForStudent = Math.max(
+                                        0L,
+                                        studentGenderCapacity - genderBookedSeats);
+
+                        result.add(
+                                        new StudentAfternoonRouteResponse(
+                                                        assignmentId,
+                                                        routeId,
+                                                        routeNumber,
+                                                        routeName,
+                                                        acType,
+                                                        assignmentType,
+                                                        shuttleGroup,
+                                                        assignmentDate,
+                                                        totalSeats,
+                                                        bookedSeats,
+                                                        availableSeats,
+                                                        studentGenderCapacity,
+                                                        availableSeatsForStudent));
+                }
+
+                return result;
         }
 
-        StudentTransportProfile profile =
-                profileRepository.findByStudentId(student.getId())
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Transport profile not found"));
+        private boolean contains(
+                        String[] allowedRoutes,
+                        String routeNumber) {
 
-        Route morningRoute =
-                routeRepository.findByRouteNumber(
-                        profile.getMorningRouteNumber())
-                        .orElseThrow(() ->
-                                new ResponseStatusException(
-                                        HttpStatus.NOT_FOUND,
-                                        "Morning route not found"));
+                if (allowedRoutes == null || routeNumber == null) {
+                        return false;
+                }
 
-        String[] allowedRoutes = morningRoute.getAllowedRoutes();
+                for (String allowedRoute : allowedRoutes) {
+                        if (allowedRoute != null
+                                        && allowedRoute.trim().equalsIgnoreCase(
+                                                        routeNumber.trim())) {
+                                return true;
+                        }
+                }
 
-        List<Object[]> rows =
-                scheduleRepository.getStudentSchedule(date);
-
-        List<StudentAfternoonRouteResponse> result =
-                new ArrayList<>();
-
-        for (Object[] row : rows) {
-
-            Long assignmentId =
-                    ((Number) row[0]).longValue();
-
-            Long routeId =
-                    ((Number) row[1]).longValue();
-
-            String routeNumber = (String) row[2];
-            String routeName = (String) row[3];
-            String acType = (String) row[4];
-            String assignmentType = (String) row[5];
-            String shuttleGroup = (String) row[6];
-            LocalDate assignmentDate = (LocalDate) row[7];
-
-            String routeCode = (String) row[8];
-
-            long bookedSeats =
-                ((Number) row[9]).longValue();
-
-            // Transport profile and afternoon route must match.
-            if (!sameValue(profile.getAcType(), acType)) {
-                continue;
-            }
-
-            boolean eligible;
-
-            if ("SHUTTLE".equalsIgnoreCase(assignmentType)) {
-    eligible = true;
-} else {
-    eligible = contains(allowedRoutes, routeCode);
-}
-
-            if (!eligible) {
-                continue;
-            }
-
-            /*
-             * SeatLayout contains 55 valid seats, including faculty-only seats.
-             *
-             * Keep this count aligned with SeatLayout.
-             */
-            int totalSeats = SeatLayout.getStudentBookableSeatCount();
-
-            long availableSeats =
-                    Math.max(0L, totalSeats - bookedSeats);
-
-            result.add(
-                    new StudentAfternoonRouteResponse(
-                            assignmentId,
-                            routeId,
-                            routeNumber,
-                            routeName,
-                            acType,
-                            assignmentType,
-                            shuttleGroup,
-                            assignmentDate,
-                            totalSeats,
-                            bookedSeats,
-                            availableSeats
-                    )
-            );
+                return false;
         }
 
-        return result;
-    }
-
-    private boolean contains(
-            String[] allowedRoutes,
-            String routeNumber) {
-
-        if (allowedRoutes == null || routeNumber == null) {
-            return false;
+        private boolean sameValue(String first, String second) {
+                return first != null
+                                && second != null
+                                && Objects.equals(
+                                                first.trim().toUpperCase(),
+                                                second.trim().toUpperCase());
         }
-
-        for (String allowedRoute : allowedRoutes) {
-            if (allowedRoute != null
-                    && allowedRoute.trim().equalsIgnoreCase(
-                            routeNumber.trim())) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean sameValue(String first, String second) {
-        return first != null
-                && second != null
-                && Objects.equals(
-                        first.trim().toUpperCase(),
-                        second.trim().toUpperCase());
-    }
 }

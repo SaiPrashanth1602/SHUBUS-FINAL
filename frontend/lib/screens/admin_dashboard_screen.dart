@@ -6,6 +6,7 @@ import 'admin_login_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
+
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
@@ -25,10 +26,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   int n(dynamic value) =>
       value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+
   Map<String, dynamic> m(dynamic value) =>
       value is Map ? Map<String, dynamic>.from(value) : {};
+
   String fmt(DateTime value) =>
       '${value.day.toString().padLeft(2, '0')} ${_month(value.month)} ${value.year}';
+
   String _month(int m) => const [
     '',
     'Jan',
@@ -53,30 +57,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> refresh() async {
     if (loading) return;
+
     if (mounted) {
       setState(() {
         loading = true;
       });
     }
+
     try {
       final today = DateUtils.dateOnly(DateTime.now());
       final startDate = today.add(const Duration(days: 1));
       final endDate = today.add(const Duration(days: 90));
+
       final assignments = await service.getAssignmentsForRange(
         startDate,
         endDate,
       );
+
       final scheduledEntries = assignments.entries
           .where((entry) => entry.value.isNotEmpty)
           .toList();
+
       final scheduledEntry = scheduledEntries.isEmpty
           ? null
           : scheduledEntries.first;
+
       final nextDate = scheduledEntry?.key;
       final nextItems = scheduledEntry?.value ?? <dynamic>[];
+
       final schedule = nextDate == null
           ? <dynamic>[]
           : await service.getDashboardSchedule(nextDate);
+
       if (mounted) {
         setState(() {
           data = {'date': nextDate, 'schedule': schedule};
@@ -104,18 +116,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   String _routeNumber(Map<String, dynamic> item) =>
       '${item['routeNumber'] ?? item['busNumber'] ?? item['routeName'] ?? 'Bus'}';
+
   String _routeName(Map<String, dynamic> item) =>
       '${item['routeName'] ?? ''}'.trim();
+
   int _bookings(Map<String, dynamic> item) => n(
     item['bookedSeats'] ??
         item['bookings'] ??
         item['bookingCount'] ??
         item['totalBookings'],
   );
+
   int _capacity(Map<String, dynamic> item) =>
       n(item['totalSeats'] ?? item['capacity'] ?? item['totalCapacity']);
+
   String _type(Map<String, dynamic> item) =>
       '${item['assignmentType'] ?? 'REGULAR'}'.toUpperCase();
+
   String _group(Map<String, dynamic> item) =>
       '${item['shuttleGroup'] ?? ''}'.toUpperCase().replaceAll(' ', '');
 
@@ -123,26 +140,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       .map((e) => m(e))
       .where((e) => _type(e) == 'REGULAR')
       .toList();
+
   List<Map<String, dynamic>> shuttleBuses(String destination) {
     final all = scheduledOperations
         .map((e) => m(e))
         .where((e) => _type(e) != 'REGULAR')
         .toList();
+
     final key = destination.toUpperCase();
+
     return all.where((e) {
       final t = _type(e);
       final g = _group(e);
-      final combined = '$t $g ${e['routeName'] ?? ''} ${e['routeNumber'] ?? ''}'
-          .toUpperCase();
+
+      final combined =
+          '$t $g ${e['routeName'] ?? ''} ${e['routeNumber'] ?? ''}'
+              .toUpperCase();
+
       if (key == 'ALANDUR') {
         return combined.contains('ALANDUR') || g.startsWith('A');
       }
+
       if (key == 'VELACHERY') {
         return combined.contains('VELACHERY') || g.startsWith('V');
       }
+
       if (key == 'SHOLINGANALLUR') {
         return combined.contains('SHOLI') || g.startsWith('S');
       }
+
       return combined.contains('TAMBARAM') || g.startsWith('T');
     }).toList();
   }
@@ -180,7 +206,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
                   child: Center(
-                    child: Text('No buses assigned for this operation.'),
+                    child: Text(
+                      'No buses assigned for this operation.',
+                    ),
                   ),
                 )
               else
@@ -193,6 +221,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       final b = buses[i];
                       final name = _routeName(b);
                       final cap = _capacity(b);
+
                       return ListTile(
                         leading: Container(
                           width: 42,
@@ -201,14 +230,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             color: paleBlue,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.directions_bus, color: blue),
+                          child: const Icon(
+                            Icons.directions_bus,
+                            color: blue,
+                          ),
                         ),
                         title: Text(
                           '${_routeNumber(b)}${name.isEmpty || name == _routeNumber(b) ? '' : ' • $name'}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                         subtitle: Text(
-                          '${b['acType'] ?? ''}${b['shuttleGroup'] == null ? '' : ' • ${b['shuttleGroup']}'}${cap > 0 ? ' • Capacity $cap' : ''}',
+                          '${b['acType'] ?? ''}'
+                          '${b['shuttleGroup'] == null ? '' : ' • ${b['shuttleGroup']}'}'
+                          '${cap > 0 ? ' • Capacity $cap' : ''}',
                         ),
                         trailing: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -339,7 +375,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade600),
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.blueGrey.shade600,
+              ),
             ),
             const SizedBox(height: 16),
             _metric('Buses', count, Icons.directions_bus_outlined),
@@ -397,21 +436,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         .map(_group)
         .where((g) => RegExp(r'^A[1-5]$').hasMatch(g))
         .toSet();
+
     final vSlots = velachery
         .map(_group)
         .where((g) => RegExp(r'^V[1-3]$').hasMatch(g))
         .toSet();
+
     final aOpen = aSlots.isEmpty
         ? ''
-        : 'Open till ${aSlots.reduce((a, b) => int.parse(a.substring(1)) > int.parse(b.substring(1)) ? a : b)}';
+        : 'Open till ${aSlots.reduce(
+            (a, b) =>
+                int.parse(a.substring(1)) > int.parse(b.substring(1))
+                    ? a
+                    : b,
+          )}';
+
     final vOpen = vSlots.isEmpty
         ? ''
-        : 'Open till ${vSlots.reduce((a, b) => int.parse(a.substring(1)) > int.parse(b.substring(1)) ? a : b)}';
-    final aCapacity = alandur.fold<int>(0, (sum, bus) => sum + _capacity(bus));
+        : 'Open till ${vSlots.reduce(
+            (a, b) =>
+                int.parse(a.substring(1)) > int.parse(b.substring(1))
+                    ? a
+                    : b,
+          )}';
+
+    final aCapacity = alandur.fold<int>(
+      0,
+      (sum, bus) => sum + _capacity(bus),
+    );
+
     final vCapacity = velachery.fold<int>(
       0,
       (sum, bus) => sum + _capacity(bus),
     );
+
     final aBookings = alandur.fold<int>(0, (s, b) => s + _bookings(b));
     final vBookings = velachery.fold<int>(0, (s, b) => s + _bookings(b));
 
@@ -453,7 +511,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   IconButton(
                     tooltip: 'Retry',
                     onPressed: refresh,
-                    icon: const Icon(Icons.refresh, color: Color(0xFFB42318)),
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: Color(0xFFB42318),
+                    ),
                   ),
                 ],
               ),
@@ -531,13 +592,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           const SizedBox(height: 22),
-          _sectionTitle('Regular Routes', 'Regular afternoon bus assignments'),
+          _sectionTitle(
+            'Regular Routes',
+            'Regular afternoon bus assignments',
+          ),
           _summaryCard(
             title: 'Regular Routes',
             subtitle: 'All assigned regular buses',
             icon: Icons.directions_bus_filled_rounded,
             count: '${regular.length}',
-            bookings: '${regular.fold<int>(0, (s, b) => s + _bookings(b))}',
+            bookings:
+                '${regular.fold<int>(0, (s, b) => s + _bookings(b))}',
             onTap: () => showBusDetails('Regular Routes', regular),
           ),
           const SizedBox(height: 20),
@@ -551,6 +616,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               final cardWidth = wide
                   ? (constraints.maxWidth - 14) / 2
                   : constraints.maxWidth;
+
               return Wrap(
                 spacing: 14,
                 runSpacing: 14,
@@ -559,7 +625,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     width: cardWidth,
                     child: _summaryCard(
                       title: 'Alandur Metro',
-                      subtitle: 'Shuttle buses • student-bookable capacity',
+                      subtitle:
+                          'Shuttle buses • student-bookable capacity',
                       icon: Icons.train_rounded,
                       count: '${alandur.length}',
                       bookings:
@@ -567,14 +634,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       footnote: aOpen.isEmpty
                           ? 'No Alandur slots in the selected schedule'
                           : '$aOpen • $aBookings / $aCapacity seats booked',
-                      onTap: () => showBusDetails('Alandur Metro', alandur),
+                      onTap: () =>
+                          showBusDetails('Alandur Metro', alandur),
                     ),
                   ),
                   SizedBox(
                     width: cardWidth,
                     child: _summaryCard(
                       title: 'Velachery',
-                      subtitle: 'Shuttle buses • student-bookable capacity',
+                      subtitle:
+                          'Shuttle buses • student-bookable capacity',
                       icon: Icons.directions_transit_rounded,
                       count: '${velachery.length}',
                       bookings:
@@ -594,7 +663,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       count: '${sholi.length}',
                       bookings:
                           '${sholi.fold<int>(0, (s, b) => s + _bookings(b))}',
-                      onTap: () => showBusDetails('Sholinganallur', sholi),
+                      onTap: () =>
+                          showBusDetails('Sholinganallur', sholi),
                     ),
                   ),
                   SizedBox(
@@ -623,6 +693,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     final isAssignment = index == 1;
     final isRoutes = index == 2;
+
     return Scaffold(
       appBar: AppBar(
         leading: index == 0
@@ -649,6 +720,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               onPressed: loading ? null : refresh,
               icon: const Icon(Icons.refresh),
             ),
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: logout,
+            icon: const Icon(Icons.logout_rounded),
+          ),
         ],
         bottom: (index == 0 || isRoutes)
             ? PreferredSize(
@@ -662,7 +738,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       segments: const [
                         ButtonSegment<int>(
                           value: 0,
-                          icon: Icon(Icons.directions_bus_filled_rounded),
+                          icon: Icon(
+                            Icons.directions_bus_filled_rounded,
+                          ),
                           label: Text('Shuttle Operations'),
                         ),
                         ButtonSegment<int>(
@@ -683,16 +761,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             fontSize: 12,
                           ),
                         ),
-                        foregroundColor: WidgetStateProperty.resolveWith(
-                          (states) => states.contains(WidgetState.selected)
-                              ? Colors.white
-                              : navy,
-                        ),
-                        backgroundColor: WidgetStateProperty.resolveWith(
-                          (states) => states.contains(WidgetState.selected)
-                              ? blue
-                              : Colors.white,
-                        ),
+                        foregroundColor:
+                            WidgetStateProperty.resolveWith(
+                              (states) =>
+                                  states.contains(WidgetState.selected)
+                                  ? Colors.white
+                                  : navy,
+                            ),
+                        backgroundColor:
+                            WidgetStateProperty.resolveWith(
+                              (states) =>
+                                  states.contains(WidgetState.selected)
+                                  ? blue
+                                  : Colors.white,
+                            ),
                       ),
                     ),
                   ),
@@ -712,10 +794,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 height: 50,
                 child: FilledButton.icon(
                   onPressed: () => setState(() => index = 1),
-                  icon: const Icon(Icons.directions_bus_filled_rounded),
+                  icon: const Icon(
+                    Icons.directions_bus_filled_rounded,
+                  ),
                   label: const Text(
                     'Assign Buses',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: blue,

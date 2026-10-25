@@ -13,6 +13,8 @@ public record StudentAfternoonRouteResponse(
         LocalDate assignmentDate,
         int totalSeats,
         long bookedSeats,
-        long availableSeats
+        long availableSeats,
+        int studentGenderCapacity,
+        long availableSeatsForStudent
 ) {
 }
