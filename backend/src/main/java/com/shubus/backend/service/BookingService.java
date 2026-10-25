@@ -8,6 +8,8 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.shubus.backend.dto.BookingRequest;
 import com.shubus.backend.dto.BookingResponse;
@@ -61,33 +63,33 @@ public class BookingService {
         }
 
         Student student = studentRepository
-                .findByRegNo(request.regNo())
+                .findByRegNo(request.regNo().trim())
                 .orElseThrow(() ->
-                        new RuntimeException("Student not found"));
+                        apiError(HttpStatus.NOT_FOUND, "Student not found"));
 
         if (!Boolean.TRUE.equals(student.getActive())) {
-            throw new RuntimeException(
+            throw apiError(HttpStatus.FORBIDDEN,
                     "Student account is inactive");
         }
 
         StudentTransportProfile profile =
                 profileRepository.findByStudentId(student.getId())
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                apiError(HttpStatus.NOT_FOUND,
                                         "Transport profile not found"));
 
         Route morningRoute =
                 routeRepository.findByRouteNumber(
                         profile.getMorningRouteNumber())
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                apiError(HttpStatus.NOT_FOUND,
                                         "Morning route not found"));
 
         AfternoonRouteAssignment assignment =
                 assignmentRepository.findById(
                         request.assignmentId())
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                apiError(HttpStatus.NOT_FOUND,
                                         "Assignment not found"));
 
         Route afternoonRoute = assignment.getRoute();
@@ -96,14 +98,14 @@ public class BookingService {
         if (!assignment.getAssignmentDate()
                 .equals(request.bookingDate())) {
 
-            throw new RuntimeException(
+            throw apiError(HttpStatus.BAD_REQUEST,
                     "Booking date does not match assignment date");
         }
 
         if (!BookingTimeRules.isBookingOpen(
                 request.bookingDate())) {
 
-            throw new RuntimeException(
+            throw apiError(HttpStatus.CONFLICT,
                     "Booking is currently closed");
         }
 
@@ -111,25 +113,25 @@ public class BookingService {
         String seat = request.seatNumber().trim().toUpperCase();
 
         if (!SeatLayout.isValidSeat(seat)) {
-            throw new RuntimeException("Invalid seat");
+            throw apiError(HttpStatus.BAD_REQUEST, "Invalid seat");
         }
 
         if (SeatLayout.isFacultySeat(seat)) {
-            throw new RuntimeException(
+            throw apiError(HttpStatus.BAD_REQUEST,
                     "Faculty seat cannot be booked");
         }
 
         if ("GIRL".equalsIgnoreCase(student.getGender())
                 && !SeatLayout.isGirlsSeat(seat)) {
 
-            throw new RuntimeException(
+            throw apiError(HttpStatus.BAD_REQUEST,
                     "Girls can only book girls seats");
         }
 
         if ("BOY".equalsIgnoreCase(student.getGender())
                 && !SeatLayout.isBoysSeat(seat)) {
 
-            throw new RuntimeException(
+            throw apiError(HttpStatus.BAD_REQUEST,
                     "Boys can only book boys seats");
         }
 
@@ -138,7 +140,7 @@ public class BookingService {
                 profile.getAcType(),
                 afternoonRoute.getAcType())) {
 
-            throw new RuntimeException(
+            throw apiError(HttpStatus.BAD_REQUEST,
                     "Selected route does not match your AC/Non-AC profile");
         }
 
@@ -149,14 +151,13 @@ public class BookingService {
             String[] allowedRoutes = morningRoute.getAllowedRoutes();
 
             if (!contains(
-                allowedRoutes,
-                afternoonRoute.getRouteCode())) {
+                    allowedRoutes,
+                    afternoonRoute.getRouteCode())) {
 
-                throw new RuntimeException(
-                    "Your morning route is not eligible for this afternoon route");
-}
+                throw apiError(HttpStatus.BAD_REQUEST,
+                        "Your morning route is not eligible for this afternoon route");
             }
-        
+        }
 
         // Enforce one booking per student per date.
         if (bookingRepository
@@ -165,7 +166,7 @@ public class BookingService {
                         request.bookingDate())
                 .isPresent()) {
 
-            throw new RuntimeException(
+            throw apiError(HttpStatus.CONFLICT,
                     "Student already has a booking for this date");
         }
 
@@ -176,7 +177,7 @@ public class BookingService {
                         request.bookingDate(),
                         seat)) {
 
-            throw new RuntimeException("Seat already booked");
+            throw apiError(HttpStatus.CONFLICT, "Seat already booked");
         }
 
         Booking booking = new Booking();
@@ -202,17 +203,17 @@ public class BookingService {
     public void cancelBooking(String regNo, Long bookingId) {
 
         Student student = studentRepository
-                .findByRegNo(regNo)
+                .findByRegNo(regNo == null ? "" : regNo.trim())
                 .orElseThrow(() ->
-                        new RuntimeException("Student not found"));
+                        apiError(HttpStatus.NOT_FOUND, "Student not found"));
 
         Booking booking = bookingRepository
                 .findById(bookingId)
                 .orElseThrow(() ->
-                        new RuntimeException("Booking not found"));
+                        apiError(HttpStatus.NOT_FOUND, "Booking not found"));
 
         if (!booking.getStudentId().equals(student.getId())) {
-            throw new RuntimeException(
+            throw apiError(HttpStatus.FORBIDDEN,
                     "Booking does not belong to this student");
         }
 
@@ -226,7 +227,7 @@ public class BookingService {
                         .atZone(indiaZone);
 
         if (!now.isBefore(cancellationDeadline)) {
-            throw new RuntimeException(
+            throw apiError(HttpStatus.CONFLICT,
                     "Cancellation is closed");
         }
 
@@ -239,16 +240,16 @@ public class BookingService {
             LocalDate bookingDate) {
 
         Student student = studentRepository
-                .findByRegNo(regNo)
+                .findByRegNo(regNo == null ? "" : regNo.trim())
                 .orElseThrow(() ->
-                        new RuntimeException("Student not found"));
+                        apiError(HttpStatus.NOT_FOUND, "Student not found"));
 
         Booking booking = bookingRepository
                 .findByStudentIdAndBookingDate(
                         student.getId(),
                         bookingDate)
                 .orElseThrow(() ->
-                        new RuntimeException("No booking found"));
+                        apiError(HttpStatus.NOT_FOUND, "No booking found"));
 
         return toResponse(
                 booking,
@@ -302,5 +303,10 @@ public class BookingService {
                 && Objects.equals(
                         first.trim().toUpperCase(),
                         second.trim().toUpperCase());
+    }
+
+    private ResponseStatusException apiError(
+            HttpStatus status, String message) {
+        return new ResponseStatusException(status, message);
     }
 }

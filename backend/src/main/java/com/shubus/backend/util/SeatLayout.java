@@ -18,8 +18,9 @@ public final class SeatLayout {
             "7A", "7B", "7D", "7E", "7F",
             "8A", "8B", "8D", "8E", "8F",
             "9A", "9B", "9D", "9E", "9F",
+            "10A", "10B", "10D", "10E", "10F",
 
-            "10A", "10B", "10C", "10D", "10E", "10F"
+            "11A", "11B", "11C", "11D", "11E", "11F"
     );
 
     public static boolean isValidSeat(String seat) {
@@ -28,6 +29,10 @@ public final class SeatLayout {
 
     public static boolean isFacultySeat(String seat) {
         return seat != null && seat.startsWith("5");
+    }
+
+    public static boolean isStudentBookableSeat(String seat) {
+        return isValidSeat(seat) && !isFacultySeat(seat);
     }
 
     public static boolean isGirlsSeat(String seat) {
@@ -45,7 +50,7 @@ public final class SeatLayout {
         }
 
         int row = getRow(seat);
-        return row >= 6 && row <= 10;
+        return row >= 6 && row <= 11;
     }
 
     private static int getRow(String seat) {
@@ -60,6 +65,12 @@ public final class SeatLayout {
     }
 
     public static Set<String> getAllSeats() {
-    return VALID_SEATS;
+        return VALID_SEATS;
+    }
+
+    public static int getStudentBookableSeatCount() {
+        return (int) VALID_SEATS.stream()
+                .filter(SeatLayout::isStudentBookableSeat)
+                .count();
+    }
 }
-}   

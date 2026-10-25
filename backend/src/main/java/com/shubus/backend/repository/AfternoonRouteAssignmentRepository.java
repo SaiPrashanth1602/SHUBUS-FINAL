@@ -14,6 +14,11 @@ public interface AfternoonRouteAssignmentRepository
             LocalDate assignmentDate
     );
 
+    List<AfternoonRouteAssignment> findByAssignmentDateBetween(
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
     boolean existsByAssignmentDateAndRoute_Id(
             LocalDate assignmentDate, Long routeId
     );

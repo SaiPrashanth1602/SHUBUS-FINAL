@@ -7,6 +7,8 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.shubus.backend.dto.StudentAfternoonRouteResponse;
 import com.shubus.backend.model.Route;
@@ -16,6 +18,7 @@ import com.shubus.backend.repository.AfternoonScheduleRepository;
 import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.repository.StudentRepository;
 import com.shubus.backend.repository.StudentTransportProfileRepository;
+import com.shubus.backend.util.SeatLayout;
 
 @Service
 public class StudentAfternoonRouteService {
@@ -47,26 +50,29 @@ public class StudentAfternoonRouteService {
                     "Booking date is required");
         }
 
-        Student student = studentRepository.findByRegNo(regNo)
+        Student student = studentRepository.findByRegNo(regNo == null ? "" : regNo.trim())
                 .orElseThrow(() ->
-                        new RuntimeException("Student not found"));
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND, "Student not found"));
 
         if (!Boolean.TRUE.equals(student.getActive())) {
-            throw new RuntimeException(
-                    "Student account is inactive");
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Student account is inactive");
         }
 
         StudentTransportProfile profile =
                 profileRepository.findByStudentId(student.getId())
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
                                         "Transport profile not found"));
 
         Route morningRoute =
                 routeRepository.findByRouteNumber(
                         profile.getMorningRouteNumber())
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
                                         "Morning route not found"));
 
         String[] allowedRoutes = morningRoute.getAllowedRoutes();
@@ -115,12 +121,11 @@ public class StudentAfternoonRouteService {
             }
 
             /*
-             * SeatLayout contains 50 valid seats in the current
-             * uploaded backend, including faculty-only seats.
+             * SeatLayout contains 55 valid seats, including faculty-only seats.
              *
              * Keep this count aligned with SeatLayout.
              */
-            int totalSeats = 50;
+            int totalSeats = SeatLayout.getStudentBookableSeatCount();
 
             long availableSeats =
                     Math.max(0L, totalSeats - bookedSeats);

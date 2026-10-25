@@ -6,7 +6,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.shubus.backend.dto.SeatResponse;
 import com.shubus.backend.model.Booking;
@@ -35,8 +37,14 @@ public class SeatService {
             LocalDate bookingDate) {
 
         Student student = studentRepository
-                .findByRegNo(regNo)
-                .orElseThrow(() -> new RuntimeException("Student not found"));
+                .findByRegNo(regNo == null ? "" : regNo.trim())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Student not found"));
+
+        if (!Boolean.TRUE.equals(student.getActive())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Student account is inactive");
+        }
 
         List<Booking> bookings =
                 bookingRepository

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.shubus.backend.dto.AfternoonScheduleResponse;
 import com.shubus.backend.repository.AfternoonScheduleRepository;
+import com.shubus.backend.util.SeatLayout;
 
 @Service
 public class AfternoonScheduleService {
@@ -49,10 +50,11 @@ public class AfternoonScheduleService {
                     LocalDate assignmentDate =
                             (LocalDate) row[7];
 
+                    // Query projection: row[8] is routeCode; row[9] is COUNT(b.id).
                     long bookedSeats =
-                            (Long) row[8];
+                            ((Number) row[9]).longValue();
 
-                    int totalSeats = 55;
+                    int totalSeats = SeatLayout.getStudentBookableSeatCount();
 
                     long availableSeats =
                             totalSeats - bookedSeats;

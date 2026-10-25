@@ -32,11 +32,16 @@ public class TransportProfileController {
     public TransportProfileResponse getTransportProfile(
             @PathVariable String regNo) {
 
-        Student student = studentRepository.findByRegNo(regNo)
+        Student student = studentRepository.findByRegNo(regNo == null ? "" : regNo.trim())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Student not found"
                 ));
+
+        if (!Boolean.TRUE.equals(student.getActive())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Student account is inactive");
+        }
 
         StudentTransportProfile profile =
                 profileRepository.findByStudentId(student.getId())

@@ -9,7 +9,9 @@ public record AdminDashboardResponse(
         int totalCapacity,
 
         ShuttleOverview velachery,
-        ShuttleOverview alandurMetro
+        ShuttleOverview alandurMetro,
+        ShuttleOverview sholinganallur,
+        ShuttleOverview tambaram
 ) {
 
     public record ShuttleOverview(
