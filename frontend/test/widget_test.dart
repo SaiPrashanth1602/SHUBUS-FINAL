@@ -7,7 +7,7 @@ void main() {
     await tester.pumpWidget(const ShubusAdminApp());
 
     expect(find.text('SHUBUS'), findsOneWidget);
-    expect(find.text('Admin Panel Login'), findsOneWidget);
-    expect(find.text('LOGIN'), findsOneWidget);
+    expect(find.text('Welcome'), findsOneWidget);
+    expect(find.text('SIGN IN'), findsOneWidget);
   });
 }

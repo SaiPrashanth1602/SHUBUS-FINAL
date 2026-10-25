@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'admin_dashboard_screen.dart';
+import '../services/api_config.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -12,15 +13,11 @@ class AdminLoginScreen extends StatefulWidget {
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
   final formKey = GlobalKey<FormState>();
   final empId = TextEditingController();
-  final password = TextEditingController();
-  final apiUrl = 'http://192.168.0.6:8081';
   bool loading = false;
-  bool hidePassword = true;
 
   @override
   void dispose() {
     empId.dispose();
-    password.dispose();
     super.dispose();
   }
 
@@ -29,13 +26,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     setState(() => loading = true);
     try {
       final response = await http.post(
-        Uri.parse('$apiUrl/api/admin/auth/login'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/auth/login'),
         headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
           'empId': empId.text.trim(),
-          'password': password.text,
         }),
-      );
+      ).timeout(const Duration(seconds: 20));
       if (!mounted) return;
       if (response.statusCode == 200) {
         Navigator.pushReplacement(
@@ -43,16 +39,21 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
         );
       } else {
+        String message = 'Sign in failed. Check the employee ID.';
+        try {
+          final body = jsonDecode(response.body);
+          if (body is Map && body['error'] != null) {
+            message = body['error'].toString();
+          }
+        } catch (_) {}
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login failed. Check your credentials.'),
-          ),
+          SnackBar(content: Text(message)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not connect to server: $e')),
+          SnackBar(content: Text('Could not connect to the server. Check the connection and try again.')),
         );
       }
     } finally {
@@ -94,7 +95,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                         ),
                         const SizedBox(height: 5),
                         const Text(
-                          'Administrator sign in',
+                          'Welcome',
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 26),
@@ -107,27 +108,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           validator: (v) => v == null || v.trim().isEmpty
                               ? 'Enter employee ID'
                               : null,
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          controller: password,
-                          obscureText: hidePassword,
-                          onFieldSubmitted: (_) => login(),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            suffixIcon: IconButton(
-                              onPressed: () =>
-                                  setState(() => hidePassword = !hidePassword),
-                              icon: Icon(
-                                hidePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                              ),
-                            ),
-                          ),
-                          validator: (v) =>
-                              v == null || v.isEmpty ? 'Enter password' : null,
                         ),
                         const SizedBox(height: 22),
                         SizedBox(

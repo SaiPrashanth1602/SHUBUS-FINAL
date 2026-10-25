@@ -13,7 +13,7 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final service = RouteService();
   int index = 0;
-  bool loading = true;
+  bool loading = false;
   String? error;
   Map<String, dynamic> data = {};
   DateTime? operationDate;
@@ -52,46 +52,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> refresh() async {
+    if (loading) return;
     if (mounted) {
       setState(() {
         loading = true;
-        error = null;
       });
     }
     try {
       final today = DateUtils.dateOnly(DateTime.now());
-      DateTime? nextDate;
-      List<dynamic> nextItems = [];
-      for (var offset = 1; offset <= 90 && nextDate == null; offset += 7) {
-        final offsets = List<int>.generate(
-          (91 - offset).clamp(0, 7),
-          (i) => offset + i,
-        );
-        final candidates = await Future.wait(
-          offsets.map((dayOffset) async {
-            final candidate = today.add(Duration(days: dayOffset));
-            return (
-              date: candidate,
-              items: await service.getTomorrowSchedule(candidate),
-            );
-          }),
-        );
-        for (final candidate in candidates) {
-          if (candidate.items.isNotEmpty) {
-            nextDate = candidate.date;
-            nextItems = candidate.items;
-            break;
-          }
-        }
-      }
-      final result = nextDate == null
-          ? <String, dynamic>{}
-          : await service.getDashboardOverview(nextDate);
+      final startDate = today.add(const Duration(days: 1));
+      final endDate = today.add(const Duration(days: 90));
+      final assignments = await service.getAssignmentsForRange(
+        startDate,
+        endDate,
+      );
+      final scheduledEntries = assignments.entries
+          .where((entry) => entry.value.isNotEmpty)
+          .toList();
+      final scheduledEntry = scheduledEntries.isEmpty
+          ? null
+          : scheduledEntries.first;
+      final nextDate = scheduledEntry?.key;
+      final nextItems = scheduledEntry?.value ?? <dynamic>[];
+      final schedule = nextDate == null
+          ? <dynamic>[]
+          : await service.getDashboardSchedule(nextDate);
       if (mounted) {
         setState(() {
-          data = result;
+          data = {'date': nextDate, 'schedule': schedule};
           operationDate = nextDate;
-          scheduledOperations = nextItems;
+          scheduledOperations = schedule.isNotEmpty ? schedule : nextItems;
+          error = null;
           loading = false;
         });
       }
@@ -396,39 +387,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   );
 
   Widget dashboardBody() {
-    if (loading) {
-      return const Center(child: CircularProgressIndicator(color: blue));
-    }
-    if (error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.cloud_off_outlined, size: 44, color: blue),
-              const SizedBox(height: 12),
-              const Text(
-                'Dashboard unavailable',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(error!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: refresh,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
     final regular = regularBuses;
     final alandur = shuttleBuses('ALANDUR');
     final velachery = shuttleBuses('VELACHERY');
     final sholi = shuttleBuses('SHOLINGANALLUR');
     final tambaram = shuttleBuses('TAMBARAM');
+
     final aSlots = alandur
         .map(_group)
         .where((g) => RegExp(r'^A[1-5]$').hasMatch(g))
@@ -443,15 +407,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final vOpen = vSlots.isEmpty
         ? ''
         : 'Open till ${vSlots.reduce((a, b) => int.parse(a.substring(1)) > int.parse(b.substring(1)) ? a : b)}';
-    final aCapacity = aSlots.length * 55;
-    final vCapacity = vSlots.length * 55;
+    final aCapacity = alandur.fold<int>(0, (sum, bus) => sum + _capacity(bus));
+    final vCapacity = velachery.fold<int>(
+      0,
+      (sum, bus) => sum + _capacity(bus),
+    );
     final aBookings = alandur.fold<int>(0, (s, b) => s + _bookings(b));
     final vBookings = velachery.fold<int>(0, (s, b) => s + _bookings(b));
+
     return RefreshIndicator(
       onRefresh: refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
         children: [
+          if (loading) ...[
+            const LinearProgressIndicator(
+              minHeight: 3,
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (error != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF4F2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFFFD4CC)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.cloud_off_outlined,
+                    color: Color(0xFFB42318),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Could not refresh operations. Existing dashboard is still available.\n$error',
+                      style: const TextStyle(color: Color(0xFF7A271A)),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Retry',
+                    onPressed: refresh,
+                    icon: const Icon(Icons.refresh, color: Color(0xFFB42318)),
+                  ),
+                ],
+              ),
+            ),
           Container(
             padding: const EdgeInsets.all(21),
             decoration: BoxDecoration(
@@ -469,8 +475,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        operationDate == null
-                            ? 'UPCOMING OPERATIONS'
+                        loading
+                            ? 'LOADING OPERATIONS'
+                            : operationDate == null
+                            ? 'SHUTTLE OPERATIONS'
                             : 'NEXT SCHEDULED OPERATIONS',
                         style: const TextStyle(
                           color: Colors.white70,
@@ -482,19 +490,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       const SizedBox(height: 9),
                       Text(
                         operationDate == null
-                            ? 'No operations scheduled'
+                            ? 'Operations Overview'
                             : fmt(operationDate!),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 25,
+                          fontSize: 24,
                           height: 1.15,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        operationDate == null
-                            ? 'No upcoming operation dates have been assigned.'
+                        loading
+                            ? 'Updating schedule and booking totals…'
+                            : operationDate == null
+                            ? 'No upcoming date found. You can still view service groups and assign buses.'
                             : '${scheduledOperations.length} assigned buses across all services',
                         style: const TextStyle(
                           color: Colors.white70,
@@ -521,118 +531,89 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           const SizedBox(height: 22),
-          if (operationDate != null) ...[
-            _sectionTitle('Routes Bus', 'Regular afternoon routes'),
-            _summaryCard(
-              title: 'Regular Routes',
-              subtitle: 'All assigned regular buses',
-              icon: Icons.directions_bus_filled_rounded,
-              count: '${regular.length}',
-              bookings: '${regular.fold<int>(0, (s, b) => s + _bookings(b))}',
-              onTap: () => showBusDetails('Regular Routes', regular),
-            ),
-            const SizedBox(height: 18),
-            _sectionTitle(
-              'Shuttle Services',
-              'Live assignment and booking summary',
-            ),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final wide = constraints.maxWidth >= 560;
-                final cardWidth = wide
-                    ? (constraints.maxWidth - 14) / 2
-                    : constraints.maxWidth;
-                return Wrap(
-                  spacing: 14,
-                  runSpacing: 14,
-                  children: [
-                    SizedBox(
-                      width: cardWidth,
-                      child: _summaryCard(
-                        title: 'Alandur Metro',
-                        subtitle: 'Shuttle slots • 55 seats per slot',
-                        icon: Icons.train_rounded,
-                        count: '${alandur.length}',
-                        bookings:
-                            '$aBookings${aCapacity > 0 ? ' / $aCapacity' : ''}',
-                        footnote: aOpen.isEmpty
-                            ? 'No A-slots assigned'
-                            : '$aOpen • $aBookings / $aCapacity seats booked',
-                        onTap: () => showBusDetails('Alandur Metro', alandur),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: _summaryCard(
-                        title: 'Velachery',
-                        subtitle: 'Shuttle slots • 55 seats per slot',
-                        icon: Icons.directions_transit_rounded,
-                        count: '${velachery.length}',
-                        bookings:
-                            '$vBookings${vCapacity > 0 ? ' / $vCapacity' : ''}',
-                        footnote: vOpen.isEmpty
-                            ? 'No V-slots assigned'
-                            : '$vOpen • $vBookings / $vCapacity seats booked',
-                        onTap: () => showBusDetails('Velachery', velachery),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: _summaryCard(
-                        title: 'Sholinganallur',
-                        subtitle: 'Single shuttle service',
-                        icon: Icons.location_on_outlined,
-                        count: '${sholi.length}',
-                        bookings:
-                            '${sholi.fold<int>(0, (s, b) => s + _bookings(b))}',
-                        onTap: () => showBusDetails('Sholinganallur', sholi),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: _summaryCard(
-                        title: 'Tambaram',
-                        subtitle: 'Single shuttle service',
-                        icon: Icons.location_on_rounded,
-                        count: '${tambaram.length}',
-                        bookings:
-                            '${tambaram.fold<int>(0, (s, b) => s + _bookings(b))}',
-                        onTap: () => showBusDetails('Tambaram', tambaram),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ] else
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE0EAF8)),
-              ),
-              child: const Column(
+          _sectionTitle('Regular Routes', 'Regular afternoon bus assignments'),
+          _summaryCard(
+            title: 'Regular Routes',
+            subtitle: 'All assigned regular buses',
+            icon: Icons.directions_bus_filled_rounded,
+            count: '${regular.length}',
+            bookings: '${regular.fold<int>(0, (s, b) => s + _bookings(b))}',
+            onTap: () => showBusDetails('Regular Routes', regular),
+          ),
+          const SizedBox(height: 20),
+          _sectionTitle(
+            'Shuttle Services',
+            'Choose a destination to view its shuttle buses',
+          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 560;
+              final cardWidth = wide
+                  ? (constraints.maxWidth - 14) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 14,
+                runSpacing: 14,
                 children: [
-                  Icon(Icons.event_available_outlined, size: 42, color: blue),
-                  SizedBox(height: 10),
-                  Text(
-                    'No operations scheduled',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                      color: navy,
+                  SizedBox(
+                    width: cardWidth,
+                    child: _summaryCard(
+                      title: 'Alandur Metro',
+                      subtitle: 'Shuttle buses • student-bookable capacity',
+                      icon: Icons.train_rounded,
+                      count: '${alandur.length}',
+                      bookings:
+                          '$aBookings${aCapacity > 0 ? ' / $aCapacity' : ''}',
+                      footnote: aOpen.isEmpty
+                          ? 'No Alandur slots in the selected schedule'
+                          : '$aOpen • $aBookings / $aCapacity seats booked',
+                      onTap: () => showBusDetails('Alandur Metro', alandur),
                     ),
                   ),
-                  SizedBox(height: 5),
-                  Text(
-                    'Assign routes for a future operation date to see the dashboard summary here.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.blueGrey),
+                  SizedBox(
+                    width: cardWidth,
+                    child: _summaryCard(
+                      title: 'Velachery',
+                      subtitle: 'Shuttle buses • student-bookable capacity',
+                      icon: Icons.directions_transit_rounded,
+                      count: '${velachery.length}',
+                      bookings:
+                          '$vBookings${vCapacity > 0 ? ' / $vCapacity' : ''}',
+                      footnote: vOpen.isEmpty
+                          ? 'No Velachery slots in the selected schedule'
+                          : '$vOpen • $vBookings / $vCapacity seats booked',
+                      onTap: () => showBusDetails('Velachery', velachery),
+                    ),
+                  ),
+                  SizedBox(
+                    width: cardWidth,
+                    child: _summaryCard(
+                      title: 'Sholinganallur',
+                      subtitle: 'Shuttle buses',
+                      icon: Icons.location_on_outlined,
+                      count: '${sholi.length}',
+                      bookings:
+                          '${sholi.fold<int>(0, (s, b) => s + _bookings(b))}',
+                      onTap: () => showBusDetails('Sholinganallur', sholi),
+                    ),
+                  ),
+                  SizedBox(
+                    width: cardWidth,
+                    child: _summaryCard(
+                      title: 'Tambaram',
+                      subtitle: 'Shuttle buses',
+                      icon: Icons.location_on_rounded,
+                      count: '${tambaram.length}',
+                      bookings:
+                          '${tambaram.fold<int>(0, (s, b) => s + _bookings(b))}',
+                      onTap: () => showBusDetails('Tambaram', tambaram),
+                    ),
                   ),
                 ],
-              ),
-            ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -640,94 +621,112 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final titles = ['SHUBUS ADMIN', 'Assign Afternoon Routes', 'Routes'];
+    final isAssignment = index == 1;
+    final isRoutes = index == 2;
     return Scaffold(
       appBar: AppBar(
+        leading: index == 0
+            ? null
+            : IconButton(
+                tooltip: 'Back to Shuttle Operations',
+                onPressed: () {
+                  setState(() => index = 0);
+                },
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
         title: Text(
-          titles[index],
+          isAssignment
+              ? 'Assign Afternoon Routes'
+              : isRoutes
+              ? 'Routes'
+              : 'Shuttle Operations',
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
           if (index == 0)
-            IconButton(onPressed: refresh, icon: const Icon(Icons.refresh)),
-          IconButton(
-            onPressed: logout,
-            icon: const Icon(Icons.logout_outlined),
-          ),
-        ],
-      ),
-      body: IndexedStack(
-        index: index,
-        children: [
-          dashboardBody(),
-          const AfternoonAssignmentScreen(),
-          const RoutesScreen(),
-        ],
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: SizedBox(
-        height: 76,
-        width: 76,
-        child: FloatingActionButton(
-          heroTag: 'assignRaisedButton',
-          backgroundColor: blue,
-          foregroundColor: Colors.white,
-          elevation: 8,
-          shape: const CircleBorder(),
-          onPressed: () => setState(() => index = 1),
-          child: const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.directions_bus_filled, size: 25),
-              SizedBox(height: 2),
-              Text(
-                'Assign',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.white,
-        elevation: 12,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        child: SizedBox(
-          height: 66,
-          child: Row(
-            children: [
-              Expanded(child: _nav(Icons.dashboard_outlined, 'Dashboard', 0)),
-              const Expanded(child: SizedBox()),
-              Expanded(child: _nav(Icons.route_outlined, 'Routes', 2)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _nav(IconData icon, String label, int tab) {
-    final selected = index == tab;
-    return InkWell(
-      onTap: () {
-        setState(() => index = tab);
-        if (tab == 0) refresh();
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: selected ? blue : Colors.blueGrey),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              color: selected ? blue : Colors.blueGrey,
+            IconButton(
+              tooltip: 'Refresh operations',
+              onPressed: loading ? null : refresh,
+              icon: const Icon(Icons.refresh),
             ),
-          ),
         ],
+        bottom: (index == 0 || isRoutes)
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(58),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<int>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment<int>(
+                          value: 0,
+                          icon: Icon(Icons.directions_bus_filled_rounded),
+                          label: Text('Shuttle Operations'),
+                        ),
+                        ButtonSegment<int>(
+                          value: 2,
+                          icon: Icon(Icons.alt_route_rounded),
+                          label: Text('Routes'),
+                        ),
+                      ],
+                      selected: {index},
+                      onSelectionChanged: (selection) {
+                        final next = selection.first;
+                        setState(() => index = next);
+                      },
+                      style: ButtonStyle(
+                        textStyle: WidgetStateProperty.all(
+                          const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                        foregroundColor: WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.selected)
+                              ? Colors.white
+                              : navy,
+                        ),
+                        backgroundColor: WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.selected)
+                              ? blue
+                              : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
       ),
+      body: index == 0
+          ? dashboardBody()
+          : index == 1
+          ? const AfternoonAssignmentScreen()
+          : const RoutesScreen(),
+      bottomNavigationBar: index == 0
+          ? SafeArea(
+              minimum: const EdgeInsets.fromLTRB(18, 8, 18, 10),
+              child: SizedBox(
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: () => setState(() => index = 1),
+                  icon: const Icon(Icons.directions_bus_filled_rounded),
+                  label: const Text(
+                    'Assign Buses',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: blue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
