@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/route_service.dart';
 import 'routes_screen.dart';
 import 'afternoon_assignment_screen.dart';
@@ -13,6 +14,13 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final service = RouteService();
+
+  final GlobalKey<RoutesScreenState> _routesKey =
+      GlobalKey<RoutesScreenState>();
+
+  final GlobalKey<AfternoonAssignmentScreenState> _assignmentKey =
+      GlobalKey<AfternoonAssignmentScreenState>();
+
   int index = 0;
   bool loading = false;
   String? error;
@@ -21,8 +29,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   List<dynamic> scheduledOperations = [];
 
   static const navy = Color(0xFF12305A);
-  static const blue = Color(0xFF155EEF);
   static const paleBlue = Color(0xFFF0F6FF);
+  static const teal = Color(0xFF0F766E);
 
   int n(dynamic value) =>
       value is num ? value.toInt() : int.tryParse('$value') ?? 0;
@@ -34,20 +42,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       '${value.day.toString().padLeft(2, '0')} ${_month(value.month)} ${value.year}';
 
   String _month(int m) => const [
-    '',
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ][m];
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ][m];
 
   @override
   void initState() {
@@ -109,10 +117,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void logout() => Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
-    (_) => false,
-  );
+        context,
+        MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
+        (_) => false,
+      );
 
   String _routeNumber(Map<String, dynamic> item) =>
       '${item['routeNumber'] ?? item['busNumber'] ?? item['routeName'] ?? 'Bus'}';
@@ -121,11 +129,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       '${item['routeName'] ?? ''}'.trim();
 
   int _bookings(Map<String, dynamic> item) => n(
-    item['bookedSeats'] ??
-        item['bookings'] ??
-        item['bookingCount'] ??
-        item['totalBookings'],
-  );
+        item['bookedSeats'] ??
+            item['bookings'] ??
+            item['bookingCount'] ??
+            item['totalBookings'],
+      );
 
   int _capacity(Map<String, dynamic> item) =>
       n(item['totalSeats'] ?? item['capacity'] ?? item['totalCapacity']);
@@ -181,9 +189,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,15 +203,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 21,
+                  fontSize: 18,
                   fontWeight: FontWeight.w900,
                   color: navy,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(
                 '${buses.length} buses • ${buses.fold<int>(0, (sum, b) => sum + _bookings(b))} total bookings',
-                style: TextStyle(color: Colors.blueGrey.shade600),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.blueGrey.shade600,
+                ),
               ),
               const SizedBox(height: 12),
               if (buses.isEmpty)
@@ -208,6 +223,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Center(
                     child: Text(
                       'No buses assigned for this operation.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF68758A),
+                      ),
                     ),
                   ),
                 )
@@ -216,51 +235,110 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: buses.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(
+                      height: 1,
+                      color: Color(0xFFE9EDF3),
+                    ),
                     itemBuilder: (_, i) {
                       final b = buses[i];
+                      final busNo = _routeNumber(b);
                       final name = _routeName(b);
                       final cap = _capacity(b);
+                      final bookings = _bookings(b);
 
-                      return ListTile(
-                        leading: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: paleBlue,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.directions_bus,
-                            color: blue,
-                          ),
-                        ),
-                        title: Text(
-                          '${_routeNumber(b)}${name.isEmpty || name == _routeNumber(b) ? '' : ' • $name'}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${b['acType'] ?? ''}'
-                          '${b['shuttleGroup'] == null ? '' : ' • ${b['shuttleGroup']}'}'
-                          '${cap > 0 ? ' • Capacity $cap' : ''}',
-                        ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                      final subtitle = [
+                        if ((b['acType'] ?? '').toString().trim().isNotEmpty)
+                          b['acType'].toString(),
+                        if ((b['shuttleGroup'] ?? '')
+                            .toString()
+                            .trim()
+                            .isNotEmpty)
+                          b['shuttleGroup'].toString(),
+                        if (cap > 0) 'Capacity $cap',
+                      ].join(' • ');
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Text(
-                              '${_bookings(b)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: navy,
+                            Container(
+                              width: 46,
+                              height: 46,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: paleBlue,
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: Text(
+                                busNo,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  color: navy,
+                                ),
                               ),
                             ),
-                            const Text(
-                              'bookings',
-                              style: TextStyle(fontSize: 11),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name.isEmpty || name == busNo
+                                        ? busNo
+                                        : name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF22314A),
+                                    ),
+                                  ),
+                                  if (subtitle.isNotEmpty) ...[
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      subtitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF758198),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '$bookings',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: navy,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                const Text(
+                                  'bookings',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF8993A5),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -275,155 +353,139 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _sectionTitle(String title, String subtitle) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
+  Widget _sectionTitle(String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
           title,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.w900,
             color: navy,
           ),
         ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600),
-        ),
-      ],
-    ),
-  );
+      );
 
   Widget _metric(String label, String value, IconData icon) => Row(
-    children: [
-      Icon(icon, size: 17, color: blue),
-      const SizedBox(width: 7),
-      Expanded(
-        child: Text(
-          label,
-          style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 12),
-        ),
-      ),
-      Text(
-        value,
-        style: const TextStyle(fontWeight: FontWeight.w900, color: navy),
-      ),
-    ],
-  );
+        children: [
+          Icon(icon, size: 15, color: teal),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.blueGrey.shade700,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: navy,
+            ),
+          ),
+        ],
+      );
 
   Widget _summaryCard({
     required String title,
     required String subtitle,
-    required IconData icon,
     required String count,
     required String bookings,
     required VoidCallback onTap,
     String? footnote,
-  }) => Material(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(20),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE0EAF8)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x080D2A55),
-              blurRadius: 14,
-              offset: Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: paleBlue,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: blue, size: 23),
-                ),
-                const Spacer(),
-                const Icon(
-                  Icons.arrow_outward_rounded,
-                  color: Color(0xFF94A3B8),
-                  size: 19,
+  }) =>
+      Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE0EAF8)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x080D2A55),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
                 ),
               ],
             ),
-            const SizedBox(height: 15),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
-                color: navy,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.blueGrey.shade600,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _metric('Buses', count, Icons.directions_bus_outlined),
-            const SizedBox(height: 9),
-            _metric(
-              'Total bookings',
-              bookings,
-              Icons.confirmation_number_outlined,
-            ),
-            if (footnote != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: paleBlue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  footnote,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
                   style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
                     color: navy,
                   ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Text(
-              'Tap to view bus-wise bookings  →',
-              style: TextStyle(
-                fontSize: 11,
-                color: blue,
-                fontWeight: FontWeight.w700,
-              ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.blueGrey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _metric('Buses', count, Icons.directions_bus_outlined),
+                const SizedBox(height: 7),
+                _metric(
+                  'Total bookings',
+                  bookings,
+                  Icons.confirmation_number_outlined,
+                ),
+                if (footnote != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: paleBlue,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Text(
+                      footnote,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: navy,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Center(
+                  child: Text(
+                    'Tap to view bus-wise bookings',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: navy.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 
   Widget dashboardBody() {
     final regular = regularBuses;
@@ -504,8 +566,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Could not refresh operations. Existing dashboard is still available.\n$error',
-                      style: const TextStyle(color: Color(0xFF7A271A)),
+                      'Could not refresh operations.\n$error',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF7A271A),
+                      ),
                     ),
                   ),
                   IconButton(
@@ -520,14 +585,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ),
           Container(
-            padding: const EdgeInsets.all(21),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1765F5), Color(0xFF12305A)],
-              ),
-              borderRadius: BorderRadius.circular(24),
+              color: navy,
+              borderRadius: BorderRadius.circular(22),
             ),
             child: Row(
               children: [
@@ -539,77 +600,70 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         loading
                             ? 'LOADING OPERATIONS'
                             : operationDate == null
-                            ? 'SHUTTLE OPERATIONS'
-                            : 'NEXT SCHEDULED OPERATIONS',
+                                ? 'SHUTTLE OPERATIONS'
+                                : 'NEXT SCHEDULED OPERATIONS',
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 11,
+                          fontSize: 10,
                           letterSpacing: 1.1,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 9),
+                      const SizedBox(height: 8),
                       Text(
                         operationDate == null
                             ? 'Operations Overview'
                             : fmt(operationDate!),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 24,
+                          fontSize: 23,
                           height: 1.15,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 7),
                       Text(
                         loading
                             ? 'Updating schedule and booking totals…'
                             : operationDate == null
-                            ? 'No upcoming date found. You can still view service groups and assign buses.'
-                            : '${scheduledOperations.length} assigned buses across all services',
+                                ? 'No operations scheduled yet.'
+                                : '${scheduledOperations.length} assigned buses across all services',
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  width: 54,
-                  height: 54,
+                  width: 50,
+                  height: 50,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: .15),
-                    borderRadius: BorderRadius.circular(17),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Icon(
                     Icons.calendar_month_rounded,
                     color: Colors.white,
-                    size: 29,
+                    size: 27,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 22),
-          _sectionTitle(
-            'Regular Routes',
-            'Regular afternoon bus assignments',
-          ),
+          const SizedBox(height: 20),
+          _sectionTitle('Regular Routes'),
           _summaryCard(
             title: 'Regular Routes',
             subtitle: 'All assigned regular buses',
-            icon: Icons.directions_bus_filled_rounded,
             count: '${regular.length}',
             bookings:
                 '${regular.fold<int>(0, (s, b) => s + _bookings(b))}',
             onTap: () => showBusDetails('Regular Routes', regular),
           ),
-          const SizedBox(height: 20),
-          _sectionTitle(
-            'Shuttle Services',
-            'Choose a destination to view its shuttle buses',
-          ),
+          const SizedBox(height: 18),
+          _sectionTitle('Shuttle Services'),
           LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= 560;
@@ -625,9 +679,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     width: cardWidth,
                     child: _summaryCard(
                       title: 'Alandur Metro',
-                      subtitle:
-                          'Shuttle buses • student-bookable capacity',
-                      icon: Icons.train_rounded,
+                      subtitle: 'Shuttle buses',
                       count: '${alandur.length}',
                       bookings:
                           '$aBookings${aCapacity > 0 ? ' / $aCapacity' : ''}',
@@ -642,9 +694,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     width: cardWidth,
                     child: _summaryCard(
                       title: 'Velachery',
-                      subtitle:
-                          'Shuttle buses • student-bookable capacity',
-                      icon: Icons.directions_transit_rounded,
+                      subtitle: 'Shuttle buses',
                       count: '${velachery.length}',
                       bookings:
                           '$vBookings${vCapacity > 0 ? ' / $vCapacity' : ''}',
@@ -659,7 +709,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: _summaryCard(
                       title: 'Sholinganallur',
                       subtitle: 'Shuttle buses',
-                      icon: Icons.location_on_outlined,
                       count: '${sholi.length}',
                       bookings:
                           '${sholi.fold<int>(0, (s, b) => s + _bookings(b))}',
@@ -672,7 +721,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: _summaryCard(
                       title: 'Tambaram',
                       subtitle: 'Shuttle buses',
-                      icon: Icons.location_on_rounded,
                       count: '${tambaram.length}',
                       bookings:
                           '${tambaram.fold<int>(0, (s, b) => s + _bookings(b))}',
@@ -694,87 +742,146 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final isAssignment = index == 1;
     final isRoutes = index == 2;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: index == 0
-            ? null
-            : IconButton(
-                tooltip: 'Back to Shuttle Operations',
-                onPressed: () {
-                  setState(() => index = 0);
-                },
-                icon: const Icon(Icons.arrow_back_rounded),
-              ),
-        title: Text(
-          isAssignment
-              ? 'Assign Afternoon Routes'
-              : isRoutes
-              ? 'Routes'
-              : 'Shuttle Operations',
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        actions: [
-          if (index == 0)
-            IconButton(
-              tooltip: 'Refresh operations',
-              onPressed: loading ? null : refresh,
-              icon: const Icon(Icons.refresh),
-            ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: logout,
-            icon: const Icon(Icons.logout_rounded),
+    return PopScope<Object?>(
+      canPop: !isAssignment,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        if (isAssignment) {
+          setState(() => index = 0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F9FC),
+        appBar: AppBar(
+          backgroundColor: navy,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          leading: isAssignment
+              ? IconButton(
+                  tooltip: 'Back to Shuttle Operations',
+                  onPressed: () => setState(() => index = 0),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                )
+              : null,
+          title: Text(
+            isAssignment
+                ? 'Assign Buses'
+                : isRoutes
+                    ? 'Routes'
+                    : 'Shuttle Operations',
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
-        ],
-        bottom: (index == 0 || isRoutes)
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(58),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<int>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment<int>(
-                          value: 0,
-                          icon: Icon(
-                            Icons.directions_bus_filled_rounded,
-                          ),
-                          label: Text('Shuttle Operations'),
-                        ),
-                        ButtonSegment<int>(
-                          value: 2,
-                          icon: Icon(Icons.alt_route_rounded),
-                          label: Text('Routes'),
-                        ),
-                      ],
-                      selected: {index},
-                      onSelectionChanged: (selection) {
-                        final next = selection.first;
-                        setState(() => index = next);
+          actions: [
+            if (index == 0 || isRoutes || isAssignment)
+              IconButton(
+                tooltip: isAssignment
+                    ? 'Refresh assignments'
+                    : isRoutes
+                        ? 'Refresh routes'
+                        : 'Refresh operations',
+                onPressed: loading
+                    ? null
+                    : () {
+                        if (isAssignment) {
+                          _assignmentKey.currentState?.load();
+                        } else if (isRoutes) {
+                          _routesKey.currentState?.load();
+                        } else {
+                          refresh();
+                        }
                       },
-                      style: ButtonStyle(
-                        textStyle: WidgetStateProperty.all(
-                          const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
+                icon: const Icon(Icons.refresh),
+              ),
+            IconButton(
+              tooltip: 'Logout',
+              onPressed: logout,
+              icon: const Icon(Icons.logout_rounded),
+            ),
+          ],
+          bottom: (index == 0 || isRoutes)
+              ? PreferredSize(
+                  preferredSize: const Size.fromHeight(58),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<int>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment<int>(
+                            value: 0,
+                            icon: Icon(
+                              Icons.directions_bus_filled_rounded,
+                            ),
+                            label: Text('Shuttle Operations'),
+                          ),
+                          ButtonSegment<int>(
+                            value: 2,
+                            icon: Icon(Icons.alt_route_rounded),
+                            label: Text('Routes'),
+                          ),
+                        ],
+                        selected: {index},
+                        onSelectionChanged: (selection) {
+                          final next = selection.first;
+                          setState(() => index = next);
+                        },
+                        style: ButtonStyle(
+                          textStyle: WidgetStateProperty.all(
+                            const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          foregroundColor:
+                              WidgetStateProperty.resolveWith(
+                            (states) =>
+                                states.contains(WidgetState.selected)
+                                    ? Colors.white
+                                    : navy,
+                          ),
+                          backgroundColor:
+                              WidgetStateProperty.resolveWith(
+                            (states) =>
+                                states.contains(WidgetState.selected)
+                                    ? teal
+                                    : Colors.white,
                           ),
                         ),
-                        foregroundColor:
-                            WidgetStateProperty.resolveWith(
-                              (states) =>
-                                  states.contains(WidgetState.selected)
-                                  ? Colors.white
-                                  : navy,
-                            ),
-                        backgroundColor:
-                            WidgetStateProperty.resolveWith(
-                              (states) =>
-                                  states.contains(WidgetState.selected)
-                                  ? blue
-                                  : Colors.white,
-                            ),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+        ),
+        body: index == 0
+            ? dashboardBody()
+            : index == 1
+                ? AfternoonAssignmentScreen(key: _assignmentKey)
+                : RoutesScreen(key: _routesKey),
+        bottomNavigationBar: index == 0
+            ? SafeArea(
+                minimum: const EdgeInsets.fromLTRB(18, 8, 18, 10),
+                child: SizedBox(
+                  height: 50,
+                  child: FilledButton.icon(
+                    onPressed: () => setState(() => index = 1),
+                    icon: const Icon(
+                      Icons.directions_bus_filled_rounded,
+                    ),
+                    label: const Text(
+                      'Assign Buses',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: navy,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
@@ -782,38 +889,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               )
             : null,
       ),
-      body: index == 0
-          ? dashboardBody()
-          : index == 1
-          ? const AfternoonAssignmentScreen()
-          : const RoutesScreen(),
-      bottomNavigationBar: index == 0
-          ? SafeArea(
-              minimum: const EdgeInsets.fromLTRB(18, 8, 18, 10),
-              child: SizedBox(
-                height: 50,
-                child: FilledButton.icon(
-                  onPressed: () => setState(() => index = 1),
-                  icon: const Icon(
-                    Icons.directions_bus_filled_rounded,
-                  ),
-                  label: const Text(
-                    'Assign Buses',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: blue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : null,
     );
   }
 }
