@@ -38,6 +38,8 @@ class BookingServiceTest {
         StudentTransportProfileRepository profileRepository =
                 mock(StudentTransportProfileRepository.class);
         RouteRepository routeRepository = mock(RouteRepository.class);
+        ShuttleAvailabilityService shuttleAvailabilityService =
+                mock(ShuttleAvailabilityService.class);
         Student student = mock(Student.class);
         StudentTransportProfile profile = mock(StudentTransportProfile.class);
         Route morningRoute = mock(Route.class);
@@ -62,6 +64,7 @@ class BookingServiceTest {
         when(assignment.getAssignmentDate()).thenReturn(date);
         when(assignment.getRoute()).thenReturn(afternoonRoute);
         when(afternoonRoute.getAcType()).thenReturn("AC");
+        when(shuttleAvailabilityService.isOpen(8L, date)).thenReturn(true);
 
         try (MockedStatic<BookingTimeRules> bookingWindow =
                 mockStatic(BookingTimeRules.class)) {
@@ -75,7 +78,8 @@ class BookingServiceTest {
                             studentRepository,
                             assignmentRepository,
                             profileRepository,
-                            routeRepository)
+                            routeRepository,
+                            shuttleAvailabilityService)
                             .createBooking(new BookingRequest(
                                     "S1", 8L, date, "5A")));
 

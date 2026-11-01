@@ -20,6 +20,7 @@ import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.repository.StudentRepository;
 import com.shubus.backend.repository.StudentTransportProfileRepository;
 import com.shubus.backend.util.SeatLayout;
+import com.shubus.backend.util.ShuttleSlotRules;
 
 @Service
 public class StudentAfternoonRouteService {
@@ -95,6 +96,8 @@ public class StudentAfternoonRouteService {
                 String studentGenderValue = isBoy ? "BOY" : "GIRL";
 
                 List<Object[]> rows = scheduleRepository.getStudentSchedule(date);
+                var bookedSeatsByShuttleSlot =
+                                ShuttleAvailabilityService.bookedSeatsByShuttleSlot(rows);
 
                 List<StudentAfternoonRouteResponse> result = new ArrayList<>();
 
@@ -150,6 +153,11 @@ public class StudentAfternoonRouteService {
                                         0L,
                                         studentGenderCapacity - genderBookedSeats);
 
+                        boolean isOpen = !"SHUTTLE".equalsIgnoreCase(assignmentType)
+                                        || ShuttleSlotRules.isOpen(
+                                                        shuttleGroup,
+                                                        bookedSeatsByShuttleSlot);
+
                         result.add(
                                         new StudentAfternoonRouteResponse(
                                                         assignmentId,
@@ -164,7 +172,8 @@ public class StudentAfternoonRouteService {
                                                         bookedSeats,
                                                         availableSeats,
                                                         studentGenderCapacity,
-                                                        availableSeatsForStudent));
+                                                        availableSeatsForStudent,
+                                                        isOpen));
                 }
 
                 return result;

@@ -1,6 +1,7 @@
 package com.shubus.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +15,7 @@ import com.shubus.backend.model.Route;
 import com.shubus.backend.model.Student;
 import com.shubus.backend.model.StudentTransportProfile;
 import com.shubus.backend.repository.AfternoonScheduleRepository;
+import com.shubus.backend.repository.BookingRepository;
 import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.repository.StudentRepository;
 import com.shubus.backend.repository.StudentTransportProfileRepository;
@@ -29,6 +31,7 @@ class StudentAfternoonRouteServiceTest {
         RouteRepository routeRepository = mock(RouteRepository.class);
         AfternoonScheduleRepository scheduleRepository =
                 mock(AfternoonScheduleRepository.class);
+        BookingRepository bookingRepository = mock(BookingRepository.class);
 
         Student student = mock(Student.class);
         StudentTransportProfile profile = mock(StudentTransportProfile.class);
@@ -57,7 +60,8 @@ class StudentAfternoonRouteServiceTest {
                         studentRepository,
                         profileRepository,
                         routeRepository,
-                        scheduleRepository);
+                        scheduleRepository,
+                        bookingRepository);
 
         List<StudentAfternoonRouteResponse> results =
                 service.getAvailableRoutes("S1", date);
@@ -66,5 +70,6 @@ class StudentAfternoonRouteServiceTest {
         assertEquals(50, results.get(0).totalSeats());
         assertEquals(3, results.get(0).bookedSeats());
         assertEquals(47, results.get(0).availableSeats());
+        assertTrue(results.get(0).isOpen());
     }
 }

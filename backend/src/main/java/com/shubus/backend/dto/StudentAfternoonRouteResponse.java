@@ -15,6 +15,7 @@ public record StudentAfternoonRouteResponse(
         long bookedSeats,
         long availableSeats,
         int studentGenderCapacity,
-        long availableSeatsForStudent
+        long availableSeatsForStudent,
+        boolean isOpen
 ) {
 }

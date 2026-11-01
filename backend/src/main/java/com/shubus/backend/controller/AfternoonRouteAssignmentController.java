@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,19 +26,11 @@ import com.shubus.backend.model.AfternoonRouteAssignment;
 import com.shubus.backend.model.Route;
 import com.shubus.backend.repository.AfternoonRouteAssignmentRepository;
 import com.shubus.backend.repository.RouteRepository;
+import com.shubus.backend.util.ShuttleSlotRules;
 
 @RestController
 @RequestMapping("/api/admin/afternoon-routes")
 public class AfternoonRouteAssignmentController {
-
-    private static final Set<String> LEGACY_SHUTTLE_GROUPS = Set.of(
-            "ALANDUR_METRO", "VELACHERY"
-    );
-
-    private static final Set<String> SHUTTLE_SLOTS = Set.of(
-            "A1", "A2", "A3", "A4", "A5",
-            "V1", "V2", "V3", "S1", "T1"
-    );
 
     private final AfternoonRouteAssignmentRepository assignmentRepository;
     private final RouteRepository routeRepository;
@@ -228,8 +219,7 @@ public class AfternoonRouteAssignmentController {
             if (shuttleGroup == null || shuttleGroup.isBlank()) {
                 return "SHUTTLE assignments require a shuttleGroup or slot";
             }
-            String group = shuttleGroup.trim().toUpperCase(Locale.ROOT);
-            if (!LEGACY_SHUTTLE_GROUPS.contains(group) && !SHUTTLE_SLOTS.contains(group)) {
+            if (!ShuttleSlotRules.isSupported(shuttleGroup)) {
                 return "Unsupported shuttle group/slot: " + shuttleGroup;
             }
         }

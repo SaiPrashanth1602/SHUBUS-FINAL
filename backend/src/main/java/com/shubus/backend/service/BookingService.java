@@ -34,19 +34,22 @@ public class BookingService {
         private final AfternoonRouteAssignmentRepository assignmentRepository;
         private final StudentTransportProfileRepository profileRepository;
         private final RouteRepository routeRepository;
+        private final ShuttleAvailabilityService shuttleAvailabilityService;
 
         public BookingService(
                         BookingRepository bookingRepository,
                         StudentRepository studentRepository,
                         AfternoonRouteAssignmentRepository assignmentRepository,
                         StudentTransportProfileRepository profileRepository,
-                        RouteRepository routeRepository) {
+                        RouteRepository routeRepository,
+                        ShuttleAvailabilityService shuttleAvailabilityService) {
 
                 this.bookingRepository = bookingRepository;
                 this.studentRepository = studentRepository;
                 this.assignmentRepository = assignmentRepository;
                 this.profileRepository = profileRepository;
                 this.routeRepository = routeRepository;
+                this.shuttleAvailabilityService = shuttleAvailabilityService;
         }
 
         @Transactional
@@ -100,6 +103,14 @@ public class BookingService {
 
                         throw apiError(HttpStatus.CONFLICT,
                                         "Booking is currently closed");
+                }
+
+                if ("SHUTTLE".equalsIgnoreCase(assignment.getAssignmentType())
+                                        && !shuttleAvailabilityService.isOpen(
+                                                        assignment.getId(),
+                                                        request.bookingDate())) {
+                        throw apiError(HttpStatus.CONFLICT,
+                                                "Shuttle is not open for booking");
                 }
 
                 // Validate the selected seat.

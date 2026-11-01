@@ -22,13 +22,16 @@ public class SeatService {
 
     private final BookingRepository bookingRepository;
     private final StudentRepository studentRepository;
+    private final ShuttleAvailabilityService shuttleAvailabilityService;
 
     public SeatService(
             BookingRepository bookingRepository,
-            StudentRepository studentRepository) {
+            StudentRepository studentRepository,
+            ShuttleAvailabilityService shuttleAvailabilityService) {
 
         this.bookingRepository = bookingRepository;
         this.studentRepository = studentRepository;
+        this.shuttleAvailabilityService = shuttleAvailabilityService;
     }
 
     public List<SeatResponse> getSeats(
@@ -44,6 +47,11 @@ public class SeatService {
         if (!Boolean.TRUE.equals(student.getActive())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "Student account is inactive");
+        }
+
+        if (!shuttleAvailabilityService.isOpen(assignmentId, bookingDate)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Shuttle is not open for booking");
         }
 
         List<Booking> bookings =
