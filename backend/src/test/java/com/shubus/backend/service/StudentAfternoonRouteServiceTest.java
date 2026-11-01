@@ -20,6 +20,9 @@ import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.repository.StudentRepository;
 import com.shubus.backend.repository.StudentTransportProfileRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+
+import com.shubus.backend.util.BookingTimeRules;
 
 class StudentAfternoonRouteServiceTest {
 
@@ -63,8 +66,13 @@ class StudentAfternoonRouteServiceTest {
                         scheduleRepository,
                         bookingRepository);
 
-        List<StudentAfternoonRouteResponse> results =
-                service.getAvailableRoutes("S1", date);
+        List<StudentAfternoonRouteResponse> results;
+        try (MockedStatic<BookingTimeRules> bookingWindow =
+                org.mockito.Mockito.mockStatic(BookingTimeRules.class)) {
+            bookingWindow.when(() -> BookingTimeRules.isBookingOpen(date))
+                    .thenReturn(true);
+            results = service.getAvailableRoutes("S1", date);
+        }
 
         assertEquals(1, results.size());
         assertEquals(50, results.get(0).totalSeats());

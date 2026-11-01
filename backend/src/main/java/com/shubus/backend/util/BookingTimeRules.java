@@ -13,14 +13,19 @@ public final class BookingTimeRules {
     }
 
     public static boolean isBookingOpen(LocalDate bookingDate) {
+        return isBookingOpen(bookingDate, ZonedDateTime.now(INDIA_ZONE));
+    }
 
-        ZonedDateTime now =
-                ZonedDateTime.now(INDIA_ZONE);
+    static boolean isBookingOpen(
+            LocalDate bookingDate,
+            ZonedDateTime currentTime) {
+
+        ZonedDateTime now = currentTime.withZoneSameInstant(INDIA_ZONE);
 
         ZonedDateTime opensAt =
                 bookingDate
                         .minusDays(1)
-                        .atTime(19, 0)
+                        .atTime(14, 0)
                         .atZone(INDIA_ZONE);
 
         ZonedDateTime closesAt =

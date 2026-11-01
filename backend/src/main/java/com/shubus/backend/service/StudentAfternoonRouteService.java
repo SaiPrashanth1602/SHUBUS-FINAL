@@ -19,6 +19,7 @@ import com.shubus.backend.repository.BookingRepository;
 import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.repository.StudentRepository;
 import com.shubus.backend.repository.StudentTransportProfileRepository;
+import com.shubus.backend.util.BookingTimeRules;
 import com.shubus.backend.util.SeatLayout;
 import com.shubus.backend.util.ShuttleSlotRules;
 
@@ -153,10 +154,11 @@ public class StudentAfternoonRouteService {
                                         0L,
                                         studentGenderCapacity - genderBookedSeats);
 
-                        boolean isOpen = !"SHUTTLE".equalsIgnoreCase(assignmentType)
-                                        || ShuttleSlotRules.isOpen(
-                                                        shuttleGroup,
-                                                        bookedSeatsByShuttleSlot);
+                        boolean isOpen = BookingTimeRules.isBookingOpen(date)
+                                        && (!"SHUTTLE".equalsIgnoreCase(assignmentType)
+                                                        || ShuttleSlotRules.isOpen(
+                                                                        shuttleGroup,
+                                                                        bookedSeatsByShuttleSlot));
 
                         result.add(
                                         new StudentAfternoonRouteResponse(

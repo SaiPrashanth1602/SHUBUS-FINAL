@@ -15,6 +15,7 @@ import com.shubus.backend.model.Booking;
 import com.shubus.backend.model.Student;
 import com.shubus.backend.repository.BookingRepository;
 import com.shubus.backend.repository.StudentRepository;
+import com.shubus.backend.util.BookingTimeRules;
 import com.shubus.backend.util.SeatLayout;
 
 @Service
@@ -47,6 +48,11 @@ public class SeatService {
         if (!Boolean.TRUE.equals(student.getActive())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "Student account is inactive");
+        }
+
+        if (!BookingTimeRules.isBookingOpen(bookingDate)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Booking is currently closed");
         }
 
         if (!shuttleAvailabilityService.isOpen(assignmentId, bookingDate)) {

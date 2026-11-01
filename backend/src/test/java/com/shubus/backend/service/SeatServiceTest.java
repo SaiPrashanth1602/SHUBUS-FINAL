@@ -15,7 +15,9 @@ import com.shubus.backend.dto.SeatResponse;
 import com.shubus.backend.model.Student;
 import com.shubus.backend.repository.BookingRepository;
 import com.shubus.backend.repository.StudentRepository;
+import com.shubus.backend.util.BookingTimeRules;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -34,13 +36,19 @@ class SeatServiceTest {
         when(student.getActive()).thenReturn(true);
         when(shuttleAvailabilityService.isOpen(9L, date)).thenReturn(false);
 
-        ResponseStatusException error = assertThrows(
-                ResponseStatusException.class,
-                () -> new SeatService(
-                        bookingRepository,
-                        studentRepository,
-                        shuttleAvailabilityService)
-                        .getSeats("S1", 9L, date));
+        ResponseStatusException error;
+        try (MockedStatic<BookingTimeRules> bookingWindow =
+                org.mockito.Mockito.mockStatic(BookingTimeRules.class)) {
+            bookingWindow.when(() -> BookingTimeRules.isBookingOpen(date))
+                    .thenReturn(true);
+            error = assertThrows(
+                    ResponseStatusException.class,
+                    () -> new SeatService(
+                            bookingRepository,
+                            studentRepository,
+                            shuttleAvailabilityService)
+                            .getSeats("S1", 9L, date));
+        }
 
         assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
         verify(bookingRepository, never())
@@ -64,9 +72,15 @@ class SeatServiceTest {
                 9L, date))
                 .thenReturn(List.of());
 
-        List<SeatResponse> seats = new SeatService(
-                bookingRepository, studentRepository, shuttleAvailabilityService)
-                .getSeats("S1", 9L, date);
+        List<SeatResponse> seats;
+        try (MockedStatic<BookingTimeRules> bookingWindow =
+                org.mockito.Mockito.mockStatic(BookingTimeRules.class)) {
+            bookingWindow.when(() -> BookingTimeRules.isBookingOpen(date))
+                    .thenReturn(true);
+            seats = new SeatService(
+                    bookingRepository, studentRepository, shuttleAvailabilityService)
+                    .getSeats("S1", 9L, date);
+        }
 
         assertEquals(55, seats.size());
         assertEquals(
