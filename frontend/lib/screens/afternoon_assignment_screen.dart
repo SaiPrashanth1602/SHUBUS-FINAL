@@ -11,8 +11,7 @@ class AfternoonAssignmentScreen extends StatefulWidget {
       AfternoonAssignmentScreenState();
 }
 
-class AfternoonAssignmentScreenState
-    extends State<AfternoonAssignmentScreen> {
+class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   final service = RouteService();
 
   static const Color navy = Color(0xFF12305A);
@@ -77,6 +76,9 @@ class AfternoonAssignmentScreenState
   String? loadError;
   bool saving = false;
 
+  OverlayEntry? _loadingEntry;
+  OverlayEntry? _toastEntry;
+
   final ScrollController scrollController = ScrollController();
 
   final TextEditingController routeSearch = TextEditingController();
@@ -103,11 +105,30 @@ class AfternoonAssignmentScreenState
   @override
   void initState() {
     super.initState();
-    load();
+    _initializeOperationalDate();
+  }
+
+  Future<void> _initializeOperationalDate() async {
+    try {
+      final operationalDate = await service.getCurrentOperationalDate();
+
+      if (!mounted) return;
+
+      setState(() {
+        selectedDate = day(operationalDate);
+      });
+    } catch (_) {
+      // Fall back to the existing default date if the backend is unreachable.
+    }
+
+    await load();
   }
 
   @override
   void dispose() {
+    _hideGlobalLoading();
+    _hideToast();
+
     scrollController.dispose();
     routeSearch.dispose();
     assignedSearch.dispose();
@@ -133,12 +154,174 @@ class AfternoonAssignmentScreenState
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.year}';
 
-  void msg(String text) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(text)),
-      );
-    }
+  void _showToast(String text) {
+    if (!mounted) return;
+
+    _hideToast();
+
+    final entry = OverlayEntry(
+      builder: (overlayContext) {
+        return Positioned(
+          left: 20,
+          right: 20,
+          bottom: 28,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              decoration: BoxDecoration(
+                color: navy,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.20),
+                    blurRadius: 22,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    _toastEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+
+    Future.delayed(const Duration(seconds: 3), () {
+      if (_toastEntry == entry) {
+        _hideToast();
+      }
+    });
+  }
+
+  void _hideToast() {
+    _toastEntry?.remove();
+    _toastEntry = null;
+  }
+
+  void _showGlobalLoading() {
+    if (!mounted || _loadingEntry != null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _loadingEntry != null) return;
+
+      try {
+        final entry = OverlayEntry(
+          builder: (overlayContext) {
+            return Positioned.fill(
+              child: AbsorbPointer(
+                absorbing: true,
+                child: Container(
+                  color: navy.withValues(alpha: 0.30),
+                  child: Center(
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 22,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 28,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 52,
+                              height: 52,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 52,
+                                    height: 52,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3.4,
+                                      color: navy,
+                                      backgroundColor: Colors.transparent,
+                                      strokeCap: StrokeCap.round,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.directions_bus_filled_rounded,
+                                    size: 22,
+                                    color: navy,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              saving ? 'Saving changes…' : 'Loading…',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: navy,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Please wait',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFF758198),
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+
+        _loadingEntry = entry;
+        Overlay.of(context, rootOverlay: true).insert(entry);
+      } catch (_) {
+        _loadingEntry = null;
+      }
+    });
+  }
+
+  void _hideGlobalLoading() {
+    _loadingEntry?.remove();
+    _loadingEntry = null;
   }
 
   Future<void> chooseDate() async {
@@ -175,12 +358,12 @@ class AfternoonAssignmentScreenState
 
     if (mounted && showLoading) {
       setState(() => loading = true);
+      _showGlobalLoading();
     }
 
     try {
-      final today = DateUtils.dateOnly(DateTime.now());
-      final discoveryStart = today.add(const Duration(days: 1));
-      final discoveryEnd = today.add(const Duration(days: 365));
+      final discoveryStart = day(selectedDate);
+      final discoveryEnd = day(selectedDate).add(const Duration(days: 365));
 
       final routeData = await service.getRoutes();
       final loaded = <DateTime, List<dynamic>>{};
@@ -221,9 +404,12 @@ class AfternoonAssignmentScreenState
           loading = false;
           loadError = 'Could not load schedules: $e';
         });
-        msg('Could not load schedules: $e');
+        _showToast('Could not load schedules: $e');
       }
     } finally {
+      if (showLoading) {
+        _hideGlobalLoading();
+      }
       _loadInProgress = false;
     }
   }
@@ -232,6 +418,62 @@ class AfternoonAssignmentScreenState
 
   bool assignedOn(DateTime d, int id) =>
       scheduleFor(d).any((a) => asInt(a['routeId']) == id);
+
+  bool isShuttleSlotFilled(DateTime date, String slot) {
+    return scheduleFor(date).any(
+      (a) =>
+          '${a['assignmentType'] ?? ''}'.toUpperCase() == 'SHUTTLE' &&
+          '${a['shuttleGroup'] ?? ''}'.toUpperCase() == slot.toUpperCase(),
+    );
+  }
+
+  bool isShuttleSlotSelected(String slot) {
+    return shuttle[slot]?.isNotEmpty == true;
+  }
+
+  bool isShuttleSlotAlreadyAssigned(String slot) {
+    return isShuttleSlotFilled(selectedDate, slot);
+  }
+
+  bool isShuttleSlotFilledOrPending(DateTime date, String slot) {
+    return isShuttleSlotFilled(date, slot) ||
+        pendingShuttle[slot]?.isNotEmpty == true;
+  }
+
+  String? destinationOfSlot(String slot) {
+    for (final entry in destinations.entries) {
+      if (entry.value.contains(slot)) {
+        return entry.key;
+      }
+    }
+    return null;
+  }
+
+  bool isShuttleSlotLocked(String slot) {
+    if (isShuttleSlotAlreadyAssigned(slot)) {
+      return true;
+    }
+
+    final destination = destinationOfSlot(slot);
+    if (destination == null) return true;
+
+    final slots = destinations[destination] ?? [];
+    final slotIndex = slots.indexOf(slot);
+
+    for (var i = 0; i < slotIndex; i++) {
+      final previousSlot = slots[i];
+
+      final filled =
+          isShuttleSlotFilled(selectedDate, previousSlot) ||
+          isShuttleSlotSelected(previousSlot);
+
+      if (!filled) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   int get selectedCount =>
       regular.length + shuttle.values.fold(0, (n, s) => n + s.length);
@@ -263,6 +505,15 @@ class AfternoonAssignmentScreenState
   }
 
   void toggleSlot(String slot, int id) {
+    if (isShuttleSlotLocked(slot)) {
+      _showToast(
+        isShuttleSlotAlreadyAssigned(slot)
+            ? '$slot is already assigned.'
+            : 'Fill the previous shuttle slot first.',
+      );
+      return;
+    }
+
     setState(() {
       final set = shuttle[slot]!;
 
@@ -311,6 +562,7 @@ class AfternoonAssignmentScreenState
     if (pendingCount == 0 || saving) return;
 
     setState(() => saving = true);
+    _showGlobalLoading();
 
     var created = 0;
     final failures = <String>[];
@@ -335,16 +587,51 @@ class AfternoonAssignmentScreenState
       for (final entry in pendingShuttle.entries) {
         if (entry.value.isEmpty) continue;
 
+        final slot = entry.key;
+        final destination = destinationOfSlot(slot);
+
+        if (destination == null) {
+          failures.add('$dateLabel — $slot: invalid shuttle destination.');
+          continue;
+        }
+
+        final slots = destinations[destination] ?? [];
+        final slotIndex = slots.indexOf(slot);
+
+        var previousSlotsFilled = true;
+
+        for (var i = 0; i < slotIndex; i++) {
+          final previousSlot = slots[i];
+
+          if (!isShuttleSlotFilledOrPending(date, previousSlot)) {
+            previousSlotsFilled = false;
+            break;
+          }
+        }
+
+        if (!previousSlotsFilled) {
+          failures.add(
+            '$dateLabel — $slot: previous shuttle slot must be assigned first.',
+          );
+          continue;
+        }
+
+        if (isShuttleSlotFilled(date, slot)) {
+          failures.add('$dateLabel — $slot: shuttle slot is already assigned.');
+          continue;
+        }
+
         try {
           await service.assignRoutes(
             date: date,
             routeIds: entry.value.toList(),
             assignmentType: 'SHUTTLE',
-            shuttleGroup: entry.key,
+            shuttleGroup: slot,
           );
+
           created += entry.value.length;
         } catch (e) {
-          failures.add('$dateLabel — ${entry.key}: $e');
+          failures.add('$dateLabel — $slot: $e');
         }
       }
 
@@ -353,16 +640,37 @@ class AfternoonAssignmentScreenState
       _refreshEditSheet();
 
       if (failures.isEmpty) {
-        msg('Added $created bus${created == 1 ? '' : 'es'} to $dateLabel.');
+        _showToast(
+          'Added $created bus${created == 1 ? '' : 'es'} to $dateLabel.',
+        );
       } else {
-        msg(
+        _showToast(
           'Added $created bus${created == 1 ? '' : 'es'}; '
           '${failures.length} batch(es) failed.',
         );
       }
     } finally {
+      _hideGlobalLoading();
       if (mounted) setState(() => saving = false);
     }
+  }
+
+  Future<void> assignCurrentSelectionToSelectedDate() async {
+    if (selectedCount == 0 || saving) return;
+
+    pendingRegular.clear();
+    for (final set in pendingShuttle.values) {
+      set.clear();
+    }
+
+    pendingRegular.addAll(regular);
+
+    for (final entry in shuttle.entries) {
+      pendingShuttle[entry.key]!.addAll(entry.value);
+    }
+
+    clearSelections();
+    await assignToSelectedDate();
   }
 
   Future<void> assignToRange(DateTime endDate) async {
@@ -372,7 +680,7 @@ class AfternoonAssignmentScreenState
     final safeEndDate = day(endDate);
 
     if (safeEndDate.isBefore(startDate)) {
-      msg('End date cannot be before the selected date.');
+      _showToast('End date cannot be before the selected date.');
       return;
     }
 
@@ -387,6 +695,7 @@ class AfternoonAssignmentScreenState
     }
 
     setState(() => saving = true);
+    _showGlobalLoading();
 
     var created = 0;
     var skipped = 0;
@@ -416,9 +725,12 @@ class AfternoonAssignmentScreenState
         }
 
         for (final entry in shuttle.entries) {
-          final ids = entry.value
-              .where((id) => !assignedOn(date, id))
-              .toList();
+          if (isShuttleSlotLocked(entry.key)) {
+            skipped += entry.value.length;
+            continue;
+          }
+
+          final ids = entry.value.where((id) => !assignedOn(date, id)).toList();
 
           skipped += entry.value.length - ids.length;
 
@@ -446,15 +758,18 @@ class AfternoonAssignmentScreenState
             ? ' Skipped $skipped already-assigned bus/date pair(s).'
             : '';
 
-        msg(
-          'Created $created assignment(s) across ${targetDates.length} date(s).$skipText',
+        _showToast(
+          'Created $created assignment(s) across '
+          '${targetDates.length} date(s).$skipText',
         );
       } else {
-        msg(
-          'Created $created assignment(s); ${failures.length} batch(es) failed.',
+        _showToast(
+          'Created $created assignment(s); '
+          '${failures.length} batch(es) failed.',
         );
       }
     } finally {
+      _hideGlobalLoading();
       if (mounted) setState(() => saving = false);
     }
   }
@@ -593,13 +908,12 @@ class AfternoonAssignmentScreenState
                     ? false
                     : items.every((a) {
                         final id = assignmentIdOf(a);
-                        return id != null &&
-                            selectedAssignmentIds.contains(id);
+                        return id != null && selectedAssignmentIds.contains(id);
                       })
                     ? true
                     : items.any(
-                        (a) => selectedAssignmentIds
-                            .contains(assignmentIdOf(a)),
+                        (a) =>
+                            selectedAssignmentIds.contains(assignmentIdOf(a)),
                       )
                     ? null
                     : false,
@@ -649,13 +963,13 @@ class AfternoonAssignmentScreenState
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
-                onPressed:
-                    selectedIds.isEmpty || saving
-                        ? null
-                        : () => deassignSelectedAssignments(date),
+                onPressed: selectedIds.isEmpty || saving
+                    ? null
+                    : () => deassignSelectedAssignments(date),
                 style: FilledButton.styleFrom(
-                  backgroundColor:
-                      selectedIds.isEmpty ? Colors.grey.shade300 : danger,
+                  backgroundColor: selectedIds.isEmpty
+                      ? Colors.grey.shade300
+                      : danger,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -679,67 +993,59 @@ class AfternoonAssignmentScreenState
           ),
         Expanded(
           child: loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: navy),
-                )
+              ? const Center(child: CircularProgressIndicator(color: navy))
               : items.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No buses assigned for ${fmt(date)}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF758198),
+              ? Center(
+                  child: Text(
+                    'No buses assigned for ${fmt(date)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF758198),
+                    ),
+                  ),
+                )
+              : ListView(
+                  controller: sheetScrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                  children: [
+                    if (filteredItems.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            'No matching assigned buses found.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF758198),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ...filteredItems.map((a) => assignmentCard(date, a)),
+                    if (pendingCount > 0) ...[
+                      const SizedBox(height: 14),
+                      const Text(
+                        'NEWLY SELECTED BUSES',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                          color: navy,
                         ),
                       ),
-                    )
-                  : ListView(
-                      controller: sheetScrollController,
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                      children: [
-                        if (filteredItems.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Center(
-                              child: Text(
-                                'No matching assigned buses found.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF758198),
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          ...filteredItems.map(
-                            (a) => assignmentCard(date, a),
-                          ),
-                        if (pendingCount > 0) ...[
-                          const SizedBox(height: 14),
-                          const Text(
-                            'NEWLY SELECTED BUSES',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.8,
-                              color: navy,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ...pendingRoutes.map(
-                            (route) => _pendingRouteCard(route),
-                          ),
-                        ],
-                      ],
-                    ),
+                      const SizedBox(height: 8),
+                      ...pendingRoutes.map((route) => _pendingRouteCard(route)),
+                    ],
+                  ],
+                ),
         ),
         if (pendingCount > 0)
           Container(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(
-                top: BorderSide(color: Colors.grey.shade200),
-              ),
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
             ),
             child: SizedBox(
               width: double.infinity,
@@ -831,8 +1137,7 @@ class AfternoonAssignmentScreenState
                           children: [
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     hasAssignments
@@ -856,8 +1161,7 @@ class AfternoonAssignmentScreenState
                               ),
                             ),
                             IconButton(
-                              onPressed: () =>
-                                  Navigator.pop(addSheetContext),
+                              onPressed: () => Navigator.pop(addSheetContext),
                               icon: const Icon(Icons.close_rounded),
                             ),
                           ],
@@ -900,12 +1204,7 @@ class AfternoonAssignmentScreenState
                       Expanded(
                         child: SingleChildScrollView(
                           controller: sheetScrollController,
-                          padding: const EdgeInsets.fromLTRB(
-                            16,
-                            0,
-                            16,
-                            100,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                           child: assignmentCategory == 0
                               ? regularRoutesSection(
                                   onChanged: () => setAddSheetState(() {}),
@@ -937,16 +1236,16 @@ class AfternoonAssignmentScreenState
                                       if (confirmed != true) return;
 
                                       pendingRegular.clear();
-                                      for (final set
-                                          in pendingShuttle.values) {
+                                      for (final set in pendingShuttle.values) {
                                         set.clear();
                                       }
 
                                       pendingRegular.addAll(regular);
 
                                       for (final entry in shuttle.entries) {
-                                        pendingShuttle[entry.key]!
-                                            .addAll(entry.value);
+                                        pendingShuttle[entry.key]!.addAll(
+                                          entry.value,
+                                        );
                                       }
 
                                       clearSelections();
@@ -955,25 +1254,38 @@ class AfternoonAssignmentScreenState
                                         Navigator.pop(addSheetContext);
                                       }
 
-                                      _refreshEditSheet();
+                                      await assignToSelectedDate();
                                     } else {
-                                      final endDate =
-                                          await _pickRangeEndDate();
+                                      final choice =
+                                          await _chooseAssignmentPeriod();
 
-                                      if (endDate == null) return;
+                                      if (choice == null) return;
 
-                                      final confirmed =
-                                          await _confirmRangeAssignment(
-                                        endDate,
-                                      );
+                                      if (choice == 'THIS_DATE') {
+                                        if (mounted) {
+                                          Navigator.pop(addSheetContext);
+                                        }
 
-                                      if (confirmed != true) return;
+                                        await assignCurrentSelectionToSelectedDate();
+                                      } else {
+                                        final endDate =
+                                            await _pickRangeEndDate();
 
-                                      if (mounted) {
-                                        Navigator.pop(addSheetContext);
+                                        if (endDate == null) return;
+
+                                        final confirmed =
+                                            await _confirmRangeAssignment(
+                                              endDate,
+                                            );
+
+                                        if (confirmed != true) return;
+
+                                        if (mounted) {
+                                          Navigator.pop(addSheetContext);
+                                        }
+
+                                        await assignToRange(endDate);
                                       }
-
-                                      await assignToRange(endDate);
                                     }
                                   },
                             style: FilledButton.styleFrom(
@@ -997,8 +1309,8 @@ class AfternoonAssignmentScreenState
                               saving
                                   ? 'Saving…'
                                   : hasAssignments
-                                      ? 'Confirm selection'
-                                      : 'Assign $selectedCount bus${selectedCount == 1 ? '' : 'es'}',
+                                  ? 'Confirm selection'
+                                  : 'Assign $selectedCount bus${selectedCount == 1 ? '' : 'es'}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1014,6 +1326,94 @@ class AfternoonAssignmentScreenState
           },
         );
       },
+    );
+  }
+
+  Future<String?> _chooseAssignmentPeriod() {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 18, 8, 0),
+        contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        title: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Expanded(
+              child: Text(
+                'Choose assignment period',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: navy,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.pop(ctx),
+              icon: const Icon(Icons.close_rounded),
+              tooltip: 'Close',
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Assign $selectedCount bus${selectedCount == 1 ? '' : 'es'} '
+              'for ${fmt(selectedDate)}?',
+              style: const TextStyle(fontSize: 13.5, color: Color(0xFF4A586E)),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, 'THIS_DATE'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: navy,
+                      side: const BorderSide(color: navy),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'This date only',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, 'TILL_DATE'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: navy,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Till a date',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1077,147 +1477,25 @@ class AfternoonAssignmentScreenState
     );
   }
 
-  Future<void> editAssignment(DateTime date, dynamic a) async {
-    final id = assignmentIdOf(a);
-    final routeId = asInt(a['routeId']);
-
-    if (id == null || routeId == null) {
-      msg('Backend did not return the assignment and route IDs.');
-      return;
-    }
-
-    const assignmentTypes = {'REGULAR', 'SHUTTLE'};
-
-    final shuttleGroups = destinations.values
-        .expand((groups) => groups)
-        .toSet();
-
-    var type = '${a['assignmentType'] ?? 'REGULAR'}';
-
-    if (!assignmentTypes.contains(type)) {
-      type = 'REGULAR';
-    }
-
-    var group = '${a['shuttleGroup'] ?? 'A1'}';
-
-    if (!shuttleGroups.contains(group)) {
-      group = 'A1';
-    }
-
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialog) => AlertDialog(
-          title: Text('Edit ${a['routeNumber'] ?? 'route'}'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Operation date: ${fmt(date)}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: type,
-                  isExpanded: true,
-                  decoration: _dropdownDecoration('Assignment type'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'REGULAR',
-                      child: Text('Regular bus'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'SHUTTLE',
-                      child: Text('Shuttle'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setDialog(() => type = value);
-                  },
-                ),
-                if (type == 'SHUTTLE') ...[
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: group,
-                    isExpanded: true,
-                    decoration: _dropdownDecoration('Shuttle slot'),
-                    items: destinations.entries
-                        .expand(
-                          (entry) => entry.value.map(
-                            (slot) => DropdownMenuItem(
-                              value: slot,
-                              child: Text(
-                                '${entry.key} — $slot',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setDialog(() => group = value);
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, {'type': type, 'group': group}),
-              style: FilledButton.styleFrom(backgroundColor: navy),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (result == null) return;
-
-    try {
-      await service.updateAssignment(
-        id: id,
-        assignmentType: result['type']!,
-        shuttleGroup: result['type'] == 'SHUTTLE' ? result['group'] : null,
-      );
-
-      await load();
-      _refreshEditSheet();
-      msg('Assignment updated.');
-    } catch (e) {
-      await load();
-      _refreshEditSheet();
-      msg(
-        'Could not complete edit: $e. '
-        'Please verify the assignment for ${fmt(date)}.',
-      );
-    }
-  }
-
   Future<void> deassign(DateTime date, dynamic a) async {
     final id = assignmentIdOf(a);
 
     if (id == null) {
-      msg('Assignment ID was not returned by the backend.');
+      _showToast('Assignment ID was not returned by the backend.');
       return;
     }
 
-    final yes = await showDialog<bool>(
+    final isShuttle = '${a['assignmentType'] ?? ''}'.toUpperCase() == 'SHUTTLE';
+
+    final yes =
+        await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Remove assignment?'),
             content: Text(
               'Remove ${a['routeNumber'] ?? 'this route'} '
-              'from operation date ${fmt(date)}?',
+              'from operation date ${fmt(date)}?'
+              '${isShuttle ? '\n\nLater shuttle buses will move forward to fill the empty slot.' : ''}',
             ),
             actions: [
               TextButton(
@@ -1236,37 +1514,57 @@ class AfternoonAssignmentScreenState
 
     if (!yes) return;
 
+    setState(() => saving = true);
+    _showGlobalLoading();
+
     try {
       await service.deleteAssignment(id);
-      await load();
+
+      await load(showLoading: false);
+
       _refreshEditSheet();
-      msg('Assignment removed.');
+      _showToast('Assignment removed.');
     } catch (e) {
-      msg('Could not remove assignment: $e');
+      await load(showLoading: false);
+      _showToast('Could not remove assignment: $e');
+    } finally {
+      _hideGlobalLoading();
+      if (mounted) setState(() => saving = false);
     }
   }
 
   Future<void> deassignSelectedAssignments(DateTime date) async {
     if (saving) return;
 
-    final dateAssignmentIds = scheduleFor(date)
-        .map(assignmentIdOf)
-        .whereType<int>()
-        .toSet();
+    final dateAssignmentIds = scheduleFor(
+      date,
+    ).map(assignmentIdOf).whereType<int>().toSet();
 
     final ids = selectedAssignmentIds.intersection(dateAssignmentIds);
 
     if (ids.isEmpty) {
-      msg('Select at least one assignment on ${fmt(date)} to delete.');
+      _showToast('Select at least one assignment on ${fmt(date)} to delete.');
       return;
     }
 
-    final yes = await showDialog<bool>(
+    final selectedItems = scheduleFor(date)
+        .where(
+          (a) => assignmentIdOf(a) != null && ids.contains(assignmentIdOf(a)),
+        )
+        .toList();
+
+    final hasShuttle = selectedItems.any(
+      (a) => '${a['assignmentType'] ?? ''}'.toUpperCase() == 'SHUTTLE',
+    );
+
+    final yes =
+        await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
             title: Text('Remove ${ids.length} selected assignment(s)?'),
             content: Text(
-              'Only the checked assignments for ${fmt(date)} will be removed.',
+              'Only the checked assignments for ${fmt(date)} will be removed.'
+              '${hasShuttle ? '\n\nLater shuttle buses will move forward to fill empty slots.' : ''}',
             ),
             actions: [
               TextButton(
@@ -1287,6 +1585,7 @@ class AfternoonAssignmentScreenState
     if (!yes) return;
 
     setState(() => saving = true);
+    _showGlobalLoading();
 
     var removed = 0;
     final failed = <int>[];
@@ -1301,18 +1600,20 @@ class AfternoonAssignmentScreenState
         }
       }
 
-      selectedAssignmentIds
-          .removeAll(ids.where((id) => !failed.contains(id)));
+      selectedAssignmentIds.removeAll(ids.where((id) => !failed.contains(id)));
 
-      await load();
+      await load(showLoading: false);
+
       _refreshEditSheet();
 
-      msg(
+      _showToast(
         failed.isEmpty
             ? 'Removed $removed assignment(s).'
-            : 'Removed $removed assignment(s); ${failed.length} could not be removed.',
+            : 'Removed $removed assignment(s); '
+                  '${failed.length} could not be removed.',
       );
     } finally {
+      _hideGlobalLoading();
       if (mounted) setState(() => saving = false);
     }
   }
@@ -1321,94 +1622,60 @@ class AfternoonAssignmentScreenState
     required TextEditingController controller,
     required String hint,
     required VoidCallback onChanged,
-  }) =>
-      TextField(
-        controller: controller,
-        onChanged: (_) => onChanged(),
-        style: const TextStyle(
-          fontSize: 13,
-          color: Color(0xFF22314A),
-        ),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF8993A5),
-          ),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            size: 20,
-            color: navy,
-          ),
-          isDense: true,
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 11,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(
-              color: navy,
-              width: 1.4,
-            ),
-          ),
-        ),
-      );
+  }) => TextField(
+    controller: controller,
+    onChanged: (_) => onChanged(),
+    style: const TextStyle(fontSize: 13, color: Color(0xFF22314A)),
+    decoration: InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF8993A5)),
+      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: navy),
+      isDense: true,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: navy, width: 1.4),
+      ),
+    ),
+  );
 
   InputDecoration _dropdownDecoration(String label) => InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(
-          fontSize: 12,
-          color: Color(0xFF68758A),
-        ),
-        floatingLabelStyle: const TextStyle(
-          color: navy,
-          fontWeight: FontWeight.w700,
-        ),
-        isDense: true,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 14,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: navy,
-            width: 1.4,
-          ),
-        ),
-      );
+    labelText: label,
+    labelStyle: const TextStyle(fontSize: 12, color: Color(0xFF68758A)),
+    floatingLabelStyle: const TextStyle(
+      color: navy,
+      fontWeight: FontWeight.w700,
+    ),
+    isDense: true,
+    filled: true,
+    fillColor: Colors.white,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: navy, width: 1.4),
+    ),
+  );
 
-  Widget _routeNumberBadge(
-    String routeNumber, {
-    bool selected = false,
-  }) {
+  Widget _routeNumberBadge(String routeNumber, {bool selected = false}) {
     return SizedBox(
       width: 44,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 3,
-          vertical: 7,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? navy : paleBlue,
@@ -1521,10 +1788,7 @@ class AfternoonAssignmentScreenState
             child: Center(
               child: Text(
                 'No available buses found.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF758198),
-                ),
+                style: TextStyle(fontSize: 12, color: Color(0xFF758198)),
               ),
             ),
           )
@@ -1553,7 +1817,10 @@ class AfternoonAssignmentScreenState
 
               final count = (destinations[dest] ?? []).fold<int>(
                 0,
-                (sum, s) => sum + (shuttle[s]?.length ?? 0),
+                (sum, s) =>
+                    sum +
+                    (isShuttleSlotFilled(selectedDate, s) ? 1 : 0) +
+                    (shuttle[s]?.length ?? 0),
               );
 
               return Padding(
@@ -1588,6 +1855,8 @@ class AfternoonAssignmentScreenState
         const SizedBox(height: 10),
         ...slots.map((slot) {
           final chosen = shuttle[slot]!;
+          final alreadyAssigned = isShuttleSlotAlreadyAssigned(slot);
+          final locked = isShuttleSlotLocked(slot);
 
           final chosenRoute = routes
               .where((r) => chosen.contains(r.id))
@@ -1595,129 +1864,45 @@ class AfternoonAssignmentScreenState
 
           final query = slotSearch[slot]!.text.trim().toLowerCase();
 
-          final candidates = routes
-              .where(
-                (r) =>
-                    !regular.contains(r.id) &&
-                    !assignedOn(selectedDate, r.id) &&
-                    !shuttle.entries.any(
-                      (e) => e.key != slot && e.value.contains(r.id),
-                    ) &&
-                    ('${r.routeNumber} ${r.routeName} ${r.acType}')
-                        .toLowerCase()
-                        .contains(query),
-              )
-              .toList();
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: chosen.isNotEmpty
-                    ? navy.withValues(alpha: 0.45)
-                    : const Color(0xFFE5EAF2),
-              ),
-            ),
-            child: ExpansionTile(
-              shape: const Border(),
-              collapsedShape: const Border(),
-              tilePadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 2,
-              ),
-              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-              leading: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: chosen.isNotEmpty ? navy : paleBlue,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  slot,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11.5,
-                    color: chosen.isNotEmpty ? Colors.white : navy,
-                  ),
-                ),
-              ),
-              title: Text(
-                chosenRoute.isEmpty
-                    ? 'Tap to assign one bus'
-                    : '${chosenRoute.first.routeNumber} • ${chosenRoute.first.routeName}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12.5,
-                  color: chosenRoute.isEmpty
-                      ? const Color(0xFF8993A5)
-                      : const Color(0xFF22314A),
-                ),
-              ),
-              subtitle: const Text(
-                'One bus per slot',
-                style: TextStyle(fontSize: 10),
-              ),
-              trailing: chosen.isNotEmpty
-                  ? IconButton(
-                      tooltip: 'Clear $slot',
-                      onPressed: () {
-                        chosen.clear();
-                        onChanged();
-                      },
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: danger,
-                        size: 19,
-                      ),
+          final candidates = locked
+              ? <RouteModel>[]
+              : routes
+                    .where(
+                      (r) =>
+                          !regular.contains(r.id) &&
+                          !assignedOn(selectedDate, r.id) &&
+                          !shuttle.entries.any(
+                            (e) => e.key != slot && e.value.contains(r.id),
+                          ) &&
+                          ('${r.routeNumber} ${r.routeName} ${r.acType}')
+                              .toLowerCase()
+                              .contains(query),
                     )
-                  : const Icon(Icons.expand_more_rounded, size: 19),
-              children: [
-                _searchField(
-                  controller: slotSearch[slot]!,
-                  hint: 'Search available bus for $slot',
-                  onChanged: onChanged,
-                ),
-                const SizedBox(height: 8),
-                if (candidates.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Center(
-                      child: Text(
-                        'No available buses found.',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFF758198),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  ...candidates.map(
-                    (r) => routeTile(r, chosen, (id) {
-                      toggleSlot(slot, id);
-                      onChanged();
-                    }),
-                  ),
-              ],
-            ),
+                    .toList();
+
+          return _ShuttleSlotTile(
+            slot: slot,
+            locked: locked,
+            alreadyAssigned: alreadyAssigned,
+            chosen: chosen,
+            chosenRoute: chosenRoute,
+            candidates: candidates,
+            slotSearchController: slotSearch[slot]!,
+            onClear: () {
+              chosen.clear();
+              onChanged();
+            },
+            onToggle: (id) {
+              toggleSlot(slot, id);
+              onChanged();
+            },
           );
         }),
       ],
     );
   }
 
-  Widget assignmentCard(
-    DateTime d,
-    dynamic a, {
-    bool selectable = true,
-  }) {
+  Widget assignmentCard(DateTime d, dynamic a, {bool selectable = true}) {
     final id = assignmentIdOf(a);
     final isSelected =
         selectable && id != null && selectedAssignmentIds.contains(id);
@@ -1741,16 +1926,13 @@ class AfternoonAssignmentScreenState
       ),
       child: ListTile(
         dense: true,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 0,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
         leading: selectable
             ? Checkbox(
                 value: isSelected,
                 onChanged: (checked) {
                   if (id == null) {
-                    msg(
+                    _showToast(
                       'This assignment has no ID, so it cannot be selected for bulk deletion.',
                     );
                     return;
@@ -1783,30 +1965,8 @@ class AfternoonAssignmentScreenState
           '${a['shuttleGroup'] == null ? '' : ' • ${a['shuttleGroup']}'}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 10.5,
-            color: Color(0xFF758198),
-          ),
+          style: const TextStyle(fontSize: 10.5, color: Color(0xFF758198)),
         ),
-        trailing: selectable
-            ? PopupMenuButton<String>(
-                tooltip: 'Manage bus',
-                onSelected: (v) {
-                  if (v == 'edit') editAssignment(d, a);
-                  if (v == 'remove') deassign(d, a);
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'edit',
-                    child: Text('Edit bus'),
-                  ),
-                  PopupMenuItem(
-                    value: 'remove',
-                    child: Text('De-assign bus'),
-                  ),
-                ],
-              )
-            : null,
       ),
     );
   }
@@ -1859,10 +2019,7 @@ class AfternoonAssignmentScreenState
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 3,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: navy,
               borderRadius: BorderRadius.circular(8),
@@ -1926,9 +2083,7 @@ class AfternoonAssignmentScreenState
   @override
   Widget build(BuildContext context) {
     if (loading && routes.isEmpty && schedules.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: navy),
-      );
+      return const Center(child: CircularProgressIndicator(color: navy));
     }
 
     final items = scheduleFor(selectedDate);
@@ -2062,9 +2217,7 @@ class AfternoonAssignmentScreenState
                           width: double.infinity,
                           height: 46,
                           child: FilledButton.icon(
-                            onPressed: saving
-                                ? null
-                                : () => openAddBusSheet(),
+                            onPressed: saving ? null : () => openAddBusSheet(),
                             style: FilledButton.styleFrom(
                               backgroundColor: navy,
                               foregroundColor: Colors.white,
@@ -2075,9 +2228,7 @@ class AfternoonAssignmentScreenState
                             icon: const Icon(Icons.add_rounded),
                             label: const Text(
                               'Assign buses',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ),
                         ),
@@ -2099,8 +2250,7 @@ class AfternoonAssignmentScreenState
                           children: [
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
                                     'ASSIGNED BUSES',
@@ -2124,8 +2274,7 @@ class AfternoonAssignmentScreenState
                               ),
                             ),
                             FilledButton.icon(
-                              onPressed:
-                                  saving ? null : () => openEditSheet(),
+                              onPressed: saving ? null : () => openEditSheet(),
                               style: FilledButton.styleFrom(
                                 backgroundColor: navy,
                                 foregroundColor: Colors.white,
@@ -2186,4 +2335,316 @@ class AfternoonAssignmentScreenState
       ],
     );
   }
+}
+
+class _ShuttleSlotTile extends StatefulWidget {
+  const _ShuttleSlotTile({
+    required this.slot,
+    required this.locked,
+    required this.alreadyAssigned,
+    required this.chosen,
+    required this.chosenRoute,
+    required this.candidates,
+    required this.slotSearchController,
+    required this.onClear,
+    required this.onToggle,
+  });
+
+  final String slot;
+  final bool locked;
+  final bool alreadyAssigned;
+  final Set<int> chosen;
+  final List<RouteModel> chosenRoute;
+  final List<RouteModel> candidates;
+  final TextEditingController slotSearchController;
+  final VoidCallback onClear;
+  final void Function(int) onToggle;
+
+  @override
+  State<_ShuttleSlotTile> createState() => _ShuttleSlotTileState();
+}
+
+class _ShuttleSlotTileState extends State<_ShuttleSlotTile> {
+  bool expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBus = widget.chosen.isNotEmpty;
+    final locked = widget.locked;
+
+    return Opacity(
+      opacity: locked ? 0.55 : 1,
+      child: IgnorePointer(
+        ignoring: locked,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: hasBus
+                  ? AfternoonAssignmentScreenState.navy.withValues(alpha: 0.45)
+                  : locked
+                  ? const Color(0xFFE5EAF2)
+                  : AfternoonAssignmentScreenState.navy.withValues(alpha: 0.25),
+            ),
+          ),
+          child: ExpansionTile(
+            shape: const Border(),
+            collapsedShape: const Border(),
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 2,
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            onExpansionChanged: locked
+                ? null
+                : (value) => setState(() => expanded = value),
+            leading: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: hasBus
+                    ? AfternoonAssignmentScreenState.navy
+                    : widget.alreadyAssigned
+                    ? Colors.grey.shade400
+                    : locked
+                    ? Colors.grey.shade300
+                    : AfternoonAssignmentScreenState.paleBlue,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                widget.slot,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11.5,
+                  color: hasBus
+                      ? Colors.white
+                      : AfternoonAssignmentScreenState.navy,
+                ),
+              ),
+            ),
+            title: Text(
+              widget.chosenRoute.isEmpty
+                  ? (widget.alreadyAssigned
+                        ? 'Already assigned'
+                        : locked
+                        ? 'Fill the previous slot first'
+                        : 'Tap to assign one bus')
+                  : '${widget.chosenRoute.first.routeNumber} • '
+                        '${widget.chosenRoute.first.routeName}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12.5,
+                color: widget.chosenRoute.isEmpty
+                    ? const Color(0xFF8993A5)
+                    : const Color(0xFF22314A),
+              ),
+            ),
+            subtitle: Text(
+              widget.alreadyAssigned
+                  ? 'This shuttle slot is already occupied'
+                  : locked
+                  ? 'Locked until previous slot is filled'
+                  : 'One bus per slot',
+              style: const TextStyle(fontSize: 10),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasBus)
+                  IconButton(
+                    tooltip: 'Clear ${widget.slot}',
+                    onPressed: widget.onClear,
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AfternoonAssignmentScreenState.danger,
+                      size: 19,
+                    ),
+                  ),
+                if (locked)
+                  const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 17,
+                    color: Color(0xFF8993A5),
+                  )
+                else
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 160),
+                    child: const Icon(
+                      Icons.expand_more_rounded,
+                      size: 20,
+                      color: Color(0xFF697990),
+                    ),
+                  ),
+              ],
+            ),
+            children: [
+              TextField(
+                controller: widget.slotSearchController,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF22314A)),
+                decoration: InputDecoration(
+                  hintText: 'Search available bus for ${widget.slot}',
+                  hintStyle: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF8993A5),
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: AfternoonAssignmentScreenState.navy,
+                  ),
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 11,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFDCE4EF)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AfternoonAssignmentScreenState.navy,
+                      width: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (widget.candidates.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Center(
+                    child: Text(
+                      'No available buses found.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF758198),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...widget.candidates.map(
+                  (r) => _shuttleRouteTile(r, widget.chosen, widget.onToggle),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Widget _shuttleRouteTile(
+  RouteModel r,
+  Set<int> selected,
+  void Function(int) toggle,
+) {
+  final isSelected = selected.contains(r.id);
+
+  return InkWell(
+    key: ValueKey<int>(r.id),
+    borderRadius: BorderRadius.circular(12),
+    onTap: () => toggle(r.id),
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? AfternoonAssignmentScreenState.paleBlue
+            : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected
+              ? AfternoonAssignmentScreenState.navy
+              : const Color(0xFFE5EAF2),
+          width: isSelected ? 1.4 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 44,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AfternoonAssignmentScreenState.navy
+                    : AfternoonAssignmentScreenState.paleBlue,
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: isSelected
+                      ? AfternoonAssignmentScreenState.navy
+                      : AfternoonAssignmentScreenState.navy.withValues(
+                          alpha: 0.20,
+                        ),
+                ),
+              ),
+              child: Text(
+                r.routeNumber,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: isSelected
+                      ? Colors.white
+                      : AfternoonAssignmentScreenState.navy,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  r.routeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                    color: Color(0xFF22314A),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  r.acType,
+                  style: const TextStyle(
+                    color: Color(0xFF758198),
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(
+            isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 19,
+            color: isSelected
+                ? AfternoonAssignmentScreenState.navy
+                : const Color(0xFFBBC5D4),
+          ),
+        ],
+      ),
+    ),
+  );
 }

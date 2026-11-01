@@ -253,4 +253,24 @@ class RouteService {
     }
     return decoded;
   }
+
+  Future<DateTime> getCurrentOperationalDate() async {
+    final r = await _get(
+      Uri.parse('$apiUrl/api/admin/dashboard/operational-date'),
+    ).timeout(requestTimeout);
+
+    if (r.statusCode != 200) {
+      throw Exception(
+        'Could not load operational date (${r.statusCode}): ${r.body}',
+      );
+    }
+
+    final decoded = jsonDecode(r.body);
+
+    if (decoded is! Map || decoded['operationalDate'] is! String) {
+      throw Exception('Unexpected operational date response');
+    }
+
+    return _day(DateTime.parse(decoded['operationalDate'] as String));
+  }
 }

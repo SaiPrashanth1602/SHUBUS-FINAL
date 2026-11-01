@@ -1,131 +1,183 @@
-<div align="center">
+# SHUBUS Admin
 
-# 🚌 SHUBUS Admin
+Flutter admin client and shared Spring Boot backend for the SHUBUS campus shuttle booking system.
 
-### Route, assignment, and transport operations for SHUBUS
+## Overview
 
-**Admin Flutter app and shared REST API for the SHUBUS Student app.**
-
-<p>
-  <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter" />
-  <img src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Dart" />
-  <img src="https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java 21" />
-  <img src="https://img.shields.io/badge/Spring_Boot-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot" />
-  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-</p>
-
-**Admin Flutter** &nbsp; → &nbsp; **SHUBUS REST API** &nbsp; ← &nbsp; **Student Flutter**
-
-</div>
-
----
-
-## About
-
-SHUBUS Admin provides transport administrators with tools to maintain routes and date-specific afternoon assignments, and review the dashboard and schedule. This repository also contains the Spring Boot API used by both the Admin and Student applications.
-
-The Admin and Student apps are separate Flutter projects. They do not call each other directly: each sends HTTP requests to the shared backend, which applies server-side rules and persists data through PostgreSQL.
-
-## Features
-
-- Sign in using an employee ID.
-- Create, view, update, and remove transport routes.
-- Maintain route number, route code, route name, AC type, and allowed route codes.
-- Create, edit, remove, and browse date-specific afternoon route assignments.
-- Review dashboard and date-based schedule/capacity information.
-- Provide the shared API for Student profiles, route discovery, seat availability, and bookings.
-
-## Architecture
+SHUBUS has two Flutter clients—Admin and Student—that communicate with one shared Spring Boot REST API. The backend uses Spring Data JPA to access PostgreSQL hosted on Neon. The Student client does not connect directly to the Admin client or database.
 
 ```text
-┌────────────────────────┐          ┌──────────────────────┐
-│ SHUBUS Admin Flutter   │ ───────► │                      │
-└────────────────────────┘          │ Spring Boot REST API │ ───────► PostgreSQL
-                                    │     port 8081        │
-┌────────────────────────┐          │                      │
-│ SHUBUS Student Flutter │ ───────► │                      │
-└────────────────────────┘          └──────────────────────┘
+Admin Flutter ─────┐
+                   ├──► Spring Boot REST API ───► Neon PostgreSQL
+Student Flutter ───┘
 ```
 
-## Repository layout
+## Features evidenced in the supplied source
+
+- Employee-ID admin sign-in.
+- Dashboard and date-based schedule/capacity views.
+- Route list/create/edit/delete workflows.
+- Route number, route code, route name, AC type, and Allowed Routes management.
+- Afternoon route assignment discovery and management.
+- User-triggered refresh and loading/error feedback.
+- Shared backend endpoints used by the Student app for profile, assignment, seat, and booking operations.
+
+## Repository structure
 
 ```text
 SHUBUS-ADMIN/
-├── backend/   Spring Boot API, JPA entities, services, and tests
-├── frontend/  Admin Flutter application
-├── README.md  Admin quick start
-└── SDC.md     Combined Admin, Student, and backend handover
+├── frontend/
+│   └── lib/
+│       ├── main.dart
+│       ├── models/
+│       ├── screens/
+│       ├── services/
+│       └── widgets/
+└── backend/
+    ├── pom.xml
+    └── src/main/
+        ├── java/com/shubus/backend/
+        │   ├── config/
+        │   ├── controller/
+        │   ├── dto/
+        │   ├── model/
+        │   ├── repository/
+        │   ├── service/
+        │   └── util/
+        └── resources/
 ```
 
 ## Technology
 
-| Component | Stack |
-|---|---|
-| Admin app | Flutter, Dart, Material, `http` |
-| Shared API | Java 21, Spring Boot, Spring MVC, Spring Data JPA |
-| Database | PostgreSQL |
-| Backend build | Maven Wrapper |
+- Flutter and Dart for the Admin client.
+- Java 21 and Spring Boot 4.1.1 in the supplied Maven project.
+- Spring MVC, Spring Data JPA/Hibernate, and PostgreSQL JDBC driver.
+- PostgreSQL hosted on Neon.
+- BCrypt password encoder bean in the backend.
 
-## Run locally
+## Configure the backend
 
-### Prerequisites
+The supplied example configuration names these environment variables:
 
-- Flutter SDK and a supported emulator or device.
-- Java 21.
-- PostgreSQL database access and environment-specific credentials.
+```text
+SHUBUS_DB_URL=jdbc:postgresql://<neon-host>/<database>?sslmode=require
+SHUBUS_DB_USERNAME=<database-user>
+SHUBUS_DB_PASSWORD=<database-password>
+```
 
-### 1. Start the backend
+Configure the active `application.properties` so the Spring datasource reads those environment variables. The supplied example uses:
 
-From this repository root, configure your local datasource settings in the shell, then start Spring Boot:
+```properties
+spring.jpa.hibernate.ddl-auto=none
+spring.jpa.show-sql=false
+server.address=0.0.0.0
+server.port=8081
+```
+
+The actual runtime port and active configuration must be checked in the environment where the backend runs. Never commit real credentials or a database URL containing a password.
+
+### Start the backend
+
+From `backend/`, with a compatible JDK installed and the datasource environment configured:
+
+```bash
+./mvnw spring-boot:run
+```
+
+On Windows PowerShell:
 
 ```powershell
-Set-Location backend
-$env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://<host>:5432/<database>?sslmode=require'
-$env:SPRING_DATASOURCE_USERNAME = '<database-user>'
-$env:SPRING_DATASOURCE_PASSWORD = '<database-password>'
 .\mvnw.cmd spring-boot:run
 ```
 
-The default server port is `8081`. Check API reachability at `GET http://localhost:8081/api/health`.
+The example port is `8081`. Check `GET /api/health` to confirm the service is responding; a health response alone does not prove every database-backed endpoint works.
 
-### 2. Run the Admin app
+## Configure and run the Admin Flutter app
 
-In a second terminal, from the repository root:
+From `frontend/`:
 
-```powershell
-Set-Location frontend
+```bash
 flutter pub get
-flutter run --dart-define=API_BASE_URL=http://<backend-host>:8081
+flutter run --dart-define=API_BASE_URL=http://<reachable-backend-host>:8081
 ```
 
-Set `<backend-host>` to an address reachable from the selected device. On a physical phone, use the development computer's LAN address; emulator host networking may use a special address. The Admin app has a development fallback URL, so pass `API_BASE_URL` explicitly when connecting to another backend.
+Set the API URL to an address reachable from the emulator/device. The supplied Admin `ApiConfig` includes a local-network fallback; use an explicit `API_BASE_URL` override when running on another machine or network.
 
-## Validation commands
+## Important backend API paths
 
-```powershell
-# Admin Flutter app (from frontend/)
+| Path | Purpose evidenced in source |
+|---|---|
+| `GET /api/health` | Health endpoint |
+| `POST /api/admin/auth/login` | Admin login |
+| `GET /api/admin/dashboard` | Dashboard summary |
+| `/api/admin/routes` | Route CRUD operations |
+| `/api/admin/afternoon-routes` | Afternoon assignment list/create/update/delete and bulk creation |
+| `GET /api/admin/schedule` | Date-based schedule lookup |
+| `/api/students/{regNo}/afternoon-routes` | Student afternoon route discovery |
+| `/api/students/{regNo}/afternoon-routes/{assignmentId}/seats` | Seat availability |
+| `POST /api/students/bookings` | Booking creation |
+| `GET /api/students/{regNo}/bookings?date=YYYY-MM-DD` | Booking lookup |
+| `DELETE /api/students/{regNo}/bookings/{bookingId}` | Booking cancellation |
+
+This is a quick inventory, not a complete OpenAPI contract. Inspect each controller and DTO for exact request/response fields and validation.
+
+## Database source of truth
+
+The supplied Neon catalog export confirms six tables in `public`:
+
+- `routes`
+- `afternoon_route_assignments`
+- `bookings`
+- `students`
+- `student_transport_profiles`
+- `admin_users`
+
+The export reports primary/foreign keys, unique constraints/indexes, check constraints, and RLS disabled on those six tables. See [`SDC.md`](SDC.md) for the full catalog-based table definitions and relationships.
+
+### Schema alignment warnings
+
+- The supplied backend source contains JPA models mapped to `buses`, `bus_allowed_routes`, and `mock_bus_registrations`, but those tables were not among the six base tables in the supplied Neon catalog export. Their existence in the connected database has not been established by that export.
+- The `bookings` column export omits ordinal positions 3, 6, and 8. The `student_transport_profiles` export omits ordinal position 5. Their names/definitions are not guessed in the SDC.
+- The physical database reports `bookings.seat_number` as `NOT NULL`; the supplied `Booking` entity does not mark that field `nullable = false`. The database catalog is authoritative for physical nullability.
+- The example config uses `spring.jpa.hibernate.ddl-auto=none`; do not assume Hibernate will create missing tables.
+
+Before adding or changing entities, verify the live Neon schema and use an explicit reviewed migration where schema changes are required.
+
+## Booking logic
+
+The supplied backend checks that the student exists and is active, has a transport profile, chooses an assignment/date match, books during the allowed window, uses a valid non-faculty seat, complies with the gender seat-layout rules, and—on regular assignments—matches AC type and route-code eligibility. It also checks one booking per student/date and seat availability. Shuttle assignments use a separate availability check.
+
+The catalog export additionally reports unique indexes for `(student_id, booking_date)` and `(afternoon_assignment_id, booking_date, seat_number)`. Check the current source rules before changing booking behavior.
+
+## Security notes
+
+- Password hashes are represented in the schema; a BCrypt encoder bean exists in the backend.
+- The Student sign-in flow described in the supplied Student README uses registration number only and does not create a token-based authenticated session.
+- Do not assume the presence of a password encoder proves all authentication paths are secure.
+- RLS is reported disabled on all six catalog-confirmed tables. Do not rely on RLS as a protection layer in the current supplied snapshot.
+- Do not commit database credentials, real student data, tokens, or password hashes.
+
+## Validation
+
+From `frontend/`:
+
+```bash
 flutter analyze
 flutter test
-
-# Backend (from backend/)
-.\mvnw.cmd test
 ```
 
-## Security and configuration notes
+From `backend/`:
 
-- The Admin login currently sends an employee ID only; it does not create a token-based authenticated session or authorize API requests. Treat it as account lookup, not a security boundary.
-- The checked-in backend `application.properties` contains datasource credentials. Rotate those credentials and move them to environment-specific secret storage before sharing or deploying this repository. Do not copy credentials into this README, tests, logs, or screenshots.
-- Hibernate schema auto-generation is disabled (`ddl-auto=none`). Database schema changes must use the database owner's migration process.
-- Use HTTPS and a reviewed authentication/authorization design for deployed environments.
+```bash
+./mvnw test
+```
 
-## System documentation
+Use `.\mvnw.cmd test` on Windows. These are the commands to validate the current checkout; prior test results in an audit note are not a guarantee that a different or newer checkout still passes.
 
-See [`SDC.md`](SDC.md) for the combined system architecture, Admin and Student project maps, API contract, booking rules, configuration, troubleshooting, and developer handover.
+## Shared system documentation
+
+- [`SDC.md`](SDC.md) — system architecture, endpoint inventory, booking rules, Neon catalog schema, security notes, and unresolved verification items.
+- Student app README: see the SHUBUS Student repository.
 
 ---
-
-<div align="center">
-
-**One shared API for SHUBUS transport administration and student bookings.**
-
-</div>
+*Documentation is based on the supplied repository snapshot and Neon catalog export. Confirm runtime configuration and schema again after changes.*

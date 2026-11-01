@@ -42,20 +42,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       '${value.day.toString().padLeft(2, '0')} ${_month(value.month)} ${value.year}';
 
   String _month(int m) => const [
-        '',
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ][m];
+    '',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ][m];
 
   @override
   void initState() {
@@ -73,9 +73,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
 
     try {
-      final today = DateUtils.dateOnly(DateTime.now());
-      final startDate = today.add(const Duration(days: 1));
-      final endDate = today.add(const Duration(days: 90));
+      final operationalDate = await service.getCurrentOperationalDate();
+
+      final startDate = operationalDate;
+      final endDate = operationalDate.add(const Duration(days: 90));
 
       final assignments = await service.getAssignmentsForRange(
         startDate,
@@ -90,10 +91,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ? null
           : scheduledEntries.first;
 
-      final nextDate = scheduledEntry?.key;
+      final nextDate = scheduledEntry?.key ?? operationalDate;
       final nextItems = scheduledEntry?.value ?? <dynamic>[];
 
-      final schedule = nextDate == null
+      final schedule = nextItems.isEmpty
           ? <dynamic>[]
           : await service.getDashboardSchedule(nextDate);
 
@@ -117,10 +118,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void logout() => Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
-        (_) => false,
-      );
+    context,
+    MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
+    (_) => false,
+  );
 
   String _routeNumber(Map<String, dynamic> item) =>
       '${item['routeNumber'] ?? item['busNumber'] ?? item['routeName'] ?? 'Bus'}';
@@ -129,11 +130,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       '${item['routeName'] ?? ''}'.trim();
 
   int _bookings(Map<String, dynamic> item) => n(
-        item['bookedSeats'] ??
-            item['bookings'] ??
-            item['bookingCount'] ??
-            item['totalBookings'],
-      );
+    item['bookedSeats'] ??
+        item['bookings'] ??
+        item['bookingCount'] ??
+        item['totalBookings'],
+  );
 
   int _capacity(Map<String, dynamic> item) =>
       n(item['totalSeats'] ?? item['capacity'] ?? item['totalCapacity']);
@@ -161,9 +162,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final t = _type(e);
       final g = _group(e);
 
-      final combined =
-          '$t $g ${e['routeName'] ?? ''} ${e['routeNumber'] ?? ''}'
-              .toUpperCase();
+      final combined = '$t $g ${e['routeName'] ?? ''} ${e['routeNumber'] ?? ''}'
+          .toUpperCase();
 
       if (key == 'ALANDUR') {
         return combined.contains('ALANDUR') || g.startsWith('A');
@@ -211,10 +211,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 3),
               Text(
                 '${buses.length} buses • ${buses.fold<int>(0, (sum, b) => sum + _bookings(b))} total bookings',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.blueGrey.shade600,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600),
               ),
               const SizedBox(height: 12),
               if (buses.isEmpty)
@@ -223,10 +220,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Center(
                     child: Text(
                       'No buses assigned for this operation.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF68758A),
-                      ),
+                      style: TextStyle(fontSize: 13, color: Color(0xFF68758A)),
                     ),
                   ),
                 )
@@ -235,10 +229,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: buses.length,
-                    separatorBuilder: (_, _) => const Divider(
-                      height: 1,
-                      color: Color(0xFFE9EDF3),
-                    ),
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 1, color: Color(0xFFE9EDF3)),
                     itemBuilder: (_, i) {
                       final b = buses[i];
                       final busNo = _routeNumber(b);
@@ -354,40 +346,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _sectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            color: navy,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      title,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w900,
+        color: navy,
+      ),
+    ),
+  );
 
   Widget _metric(String label, String value, IconData icon) => Row(
-        children: [
-          Icon(icon, size: 15, color: teal),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.blueGrey.shade700,
-                fontSize: 11,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              color: navy,
-            ),
-          ),
-        ],
-      );
+    children: [
+      Icon(icon, size: 15, color: teal),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Text(
+          label,
+          style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 11),
+        ),
+      ),
+      Text(
+        value,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          color: navy,
+        ),
+      ),
+    ],
+  );
 
   Widget _summaryCard({
     required String title,
@@ -396,96 +385,89 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     required String bookings,
     required VoidCallback onTap,
     String? footnote,
-  }) =>
-      Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: onTap,
+  }) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(18),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          child: Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFE0EAF8)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x080D2A55),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
+          border: Border.all(color: const Color(0xFFE0EAF8)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x080D2A55),
+              blurRadius: 12,
+              offset: Offset(0, 4),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: navy,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 10, color: Colors.blueGrey.shade600),
+            ),
+            const SizedBox(height: 12),
+            _metric('Buses', count, Icons.directions_bus_outlined),
+            const SizedBox(height: 7),
+            _metric(
+              'Total bookings',
+              bookings,
+              Icons.confirmation_number_outlined,
+            ),
+            if (footnote != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                decoration: BoxDecoration(
+                  color: paleBlue,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  footnote,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
                     color: navy,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.blueGrey.shade600,
-                  ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                'Tap to view bus-wise bookings',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: navy.withValues(alpha: 0.45),
                 ),
-                const SizedBox(height: 12),
-                _metric('Buses', count, Icons.directions_bus_outlined),
-                const SizedBox(height: 7),
-                _metric(
-                  'Total bookings',
-                  bookings,
-                  Icons.confirmation_number_outlined,
-                ),
-                if (footnote != null) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: paleBlue,
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Text(
-                      footnote,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: navy,
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                Center(
-                  child: Text(
-                    'Tap to view bus-wise bookings',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: navy.withValues(alpha: 0.45),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   Widget dashboardBody() {
     final regular = regularBuses;
@@ -506,26 +488,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     final aOpen = aSlots.isEmpty
         ? ''
-        : 'Open till ${aSlots.reduce(
-            (a, b) =>
-                int.parse(a.substring(1)) > int.parse(b.substring(1))
-                    ? a
-                    : b,
-          )}';
+        : 'Open till ${aSlots.reduce((a, b) => int.parse(a.substring(1)) > int.parse(b.substring(1)) ? a : b)}';
 
     final vOpen = vSlots.isEmpty
         ? ''
-        : 'Open till ${vSlots.reduce(
-            (a, b) =>
-                int.parse(a.substring(1)) > int.parse(b.substring(1))
-                    ? a
-                    : b,
-          )}';
+        : 'Open till ${vSlots.reduce((a, b) => int.parse(a.substring(1)) > int.parse(b.substring(1)) ? a : b)}';
 
-    final aCapacity = alandur.fold<int>(
-      0,
-      (sum, bus) => sum + _capacity(bus),
-    );
+    final aCapacity = alandur.fold<int>(0, (sum, bus) => sum + _capacity(bus));
 
     final vCapacity = velachery.fold<int>(
       0,
@@ -576,10 +545,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   IconButton(
                     tooltip: 'Retry',
                     onPressed: refresh,
-                    icon: const Icon(
-                      Icons.refresh,
-                      color: Color(0xFFB42318),
-                    ),
+                    icon: const Icon(Icons.refresh, color: Color(0xFFB42318)),
                   ),
                 ],
               ),
@@ -600,8 +566,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         loading
                             ? 'LOADING OPERATIONS'
                             : operationDate == null
-                                ? 'SHUTTLE OPERATIONS'
-                                : 'NEXT SCHEDULED OPERATIONS',
+                            ? 'SHUTTLE OPERATIONS'
+                            : 'NEXT SCHEDULED OPERATIONS',
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 10,
@@ -626,8 +592,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         loading
                             ? 'Updating schedule and booking totals…'
                             : operationDate == null
-                                ? 'No operations scheduled yet.'
-                                : '${scheduledOperations.length} assigned buses across all services',
+                            ? 'No operations scheduled yet.'
+                            : '${scheduledOperations.length} assigned buses across all services',
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 11,
@@ -658,8 +624,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             title: 'Regular Routes',
             subtitle: 'All assigned regular buses',
             count: '${regular.length}',
-            bookings:
-                '${regular.fold<int>(0, (s, b) => s + _bookings(b))}',
+            bookings: '${regular.fold<int>(0, (s, b) => s + _bookings(b))}',
             onTap: () => showBusDetails('Regular Routes', regular),
           ),
           const SizedBox(height: 18),
@@ -686,8 +651,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       footnote: aOpen.isEmpty
                           ? 'No Alandur slots in the selected schedule'
                           : '$aOpen • $aBookings / $aCapacity seats booked',
-                      onTap: () =>
-                          showBusDetails('Alandur Metro', alandur),
+                      onTap: () => showBusDetails('Alandur Metro', alandur),
                     ),
                   ),
                   SizedBox(
@@ -712,8 +676,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       count: '${sholi.length}',
                       bookings:
                           '${sholi.fold<int>(0, (s, b) => s + _bookings(b))}',
-                      onTap: () =>
-                          showBusDetails('Sholinganallur', sholi),
+                      onTap: () => showBusDetails('Sholinganallur', sholi),
                     ),
                   ),
                   SizedBox(
@@ -769,8 +732,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             isAssignment
                 ? 'Assign Buses'
                 : isRoutes
-                    ? 'Routes'
-                    : 'Shuttle Operations',
+                ? 'Routes'
+                : 'Shuttle Operations',
             style: const TextStyle(fontWeight: FontWeight.w800),
           ),
           actions: [
@@ -779,8 +742,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 tooltip: isAssignment
                     ? 'Refresh assignments'
                     : isRoutes
-                        ? 'Refresh routes'
-                        : 'Refresh operations',
+                    ? 'Refresh routes'
+                    : 'Refresh operations',
                 onPressed: loading
                     ? null
                     : () {
@@ -812,9 +775,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         segments: const [
                           ButtonSegment<int>(
                             value: 0,
-                            icon: Icon(
-                              Icons.directions_bus_filled_rounded,
-                            ),
+                            icon: Icon(Icons.directions_bus_filled_rounded),
                             label: Text('Shuttle Operations'),
                           ),
                           ButtonSegment<int>(
@@ -835,19 +796,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               fontSize: 12,
                             ),
                           ),
-                          foregroundColor:
-                              WidgetStateProperty.resolveWith(
-                            (states) =>
-                                states.contains(WidgetState.selected)
-                                    ? Colors.white
-                                    : navy,
+                          foregroundColor: WidgetStateProperty.resolveWith(
+                            (states) => states.contains(WidgetState.selected)
+                                ? Colors.white
+                                : navy,
                           ),
-                          backgroundColor:
-                              WidgetStateProperty.resolveWith(
-                            (states) =>
-                                states.contains(WidgetState.selected)
-                                    ? teal
-                                    : Colors.white,
+                          backgroundColor: WidgetStateProperty.resolveWith(
+                            (states) => states.contains(WidgetState.selected)
+                                ? teal
+                                : Colors.white,
                           ),
                         ),
                       ),
@@ -859,8 +816,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         body: index == 0
             ? dashboardBody()
             : index == 1
-                ? AfternoonAssignmentScreen(key: _assignmentKey)
-                : RoutesScreen(key: _routesKey),
+            ? AfternoonAssignmentScreen(key: _assignmentKey)
+            : RoutesScreen(key: _routesKey),
         bottomNavigationBar: index == 0
             ? SafeArea(
                 minimum: const EdgeInsets.fromLTRB(18, 8, 18, 10),
@@ -868,9 +825,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   height: 50,
                   child: FilledButton.icon(
                     onPressed: () => setState(() => index = 1),
-                    icon: const Icon(
-                      Icons.directions_bus_filled_rounded,
-                    ),
+                    icon: const Icon(Icons.directions_bus_filled_rounded),
                     label: const Text(
                       'Assign Buses',
                       style: TextStyle(
