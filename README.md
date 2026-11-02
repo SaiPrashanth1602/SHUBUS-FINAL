@@ -1,83 +1,150 @@
-# SHUBUS
+<div align="center">
 
-> Campus shuttle booking and administration, in one Flutter launcher backed by a Spring Boot API and PostgreSQL.
+# 🚌 SHUBUS
+### Campus shuttle booking, made clearer for every ride.
 
-[![Flutter](https://img.shields.io/badge/Flutter-Dart-02569B?logo=flutter)](https://flutter.dev/) [![Spring Boot](https://img.shields.io/badge/Backend-Spring%20Boot-6DB33F?logo=springboot)](https://spring.io/projects/spring-boot) [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-4169E1?logo=postgresql)](https://www.postgresql.org/) [![Hosted on Neon](https://img.shields.io/badge/Hosted-Neon-00E599)](https://neon.tech/)
+**A connected student reservation and transport administration platform.**
 
-<p align="center"><strong>Student shuttle reservations · Admin operations · Shared transport data</strong></p>
+[![Flutter](https://img.shields.io/badge/Flutter-Dart-02569B?logo=flutter&logoColor=white)](https://flutter.dev) [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-Java-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql&logoColor=white)](https://neon.tech)
 
-<!-- IMAGE PLACEHOLDER: replace with docs/assets/shubus-hero.png (product banner or campus shuttle photo) -->
-<p align="center"><img src="docs/assets/shubus-hero.png" alt="SHUBUS campus shuttle banner" width="800" /></p>
+<!-- HERO IMAGE PLACEHOLDER: add docs/assets/shubus-hero.png — branded app mockups with a campus shuttle backdrop -->
+<img src="docs/assets/shubus-hero.png" alt="SHUBUS app and campus shuttle" width="880" />
 
-## At a glance
+**Student App** &nbsp; · &nbsp; **Admin App** &nbsp; · &nbsp; **One shared service**
 
-SHUBUS combines student and admin experiences through a launcher. Students can view their transport profile, browse afternoon availability, choose a seat, and manage a booking. Administrators manage routes and afternoon assignments, review operational schedules and dashboard information, and access bus-related administration features exposed by the backend.
+</div>
 
-> **Repository note:** `frontend/` is the combined launcher; `frontend-student/` and `frontend-admin/` are the Flutter modules it imports. `backend/` contains the REST API. This describes the current workspace, not the older separate-branch VIT EV Buggy architecture in the supplied reference README.
+---
 
-## Product tour
+## A better view of the campus ride
 
-| Student experience | Admin experience |
-|---|---|
-| <!-- IMAGE PLACEHOLDER: docs/screenshots/student-home.png --> ![Student home](docs/screenshots/student-home.png) | <!-- IMAGE PLACEHOLDER: docs/screenshots/admin-dashboard.png --> ![Admin dashboard](docs/screenshots/admin-dashboard.png) |
-| <!-- IMAGE PLACEHOLDER: docs/screenshots/student-booking.png --> ![Student booking](docs/screenshots/student-booking.png) | <!-- IMAGE PLACEHOLDER: docs/screenshots/admin-routes.png --> ![Admin routes](docs/screenshots/admin-routes.png) |
+SHUBUS brings shuttle information and reservations into a single mobile experience. Students can check the transport details associated with their profile, explore afternoon route availability, choose an available seat, and manage their booking. Transport administrators can maintain route information and daily assignments, then review schedules and dashboard summaries.
 
-Add screenshots in `docs/screenshots/` and keep these names, or update the links. Until assets are added, the image previews intentionally act as placeholders.
+The repository brings the two experiences together through a Flutter launcher. A Spring Boot API provides shared application behavior and connects the clients to PostgreSQL.
 
-## Architecture
+> **One system, two audiences:** the Student experience helps riders plan; the Admin experience helps transport staff organize service.
+
+## The experience
+
+### Start in the right place
+
+<!-- SCREEN PLACEHOLDER: docs/screenshots/launcher.png — app selection screen -->
+<p align="center"><img src="docs/screenshots/launcher.png" alt="SHUBUS app selection screen" width="280" /></p>
+<p align="center"><sub><b>01 · Choose an experience</b> — Enter the Student or Admin app from the SHUBUS launcher.</sub></p>
+
+### For students
+
+Students enter through the host application's identity flow and use the registration number supplied to SHUBUS to load their transport profile. The experience is organized around the information and actions needed to plan a ride.
+
+| Transport profile | Afternoon routes | Route details |
+|:---:|:---:|:---:|
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/student-profile.png --> ![Student profile screen](docs/screenshots/student-profile.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-routes.png --> ![Available routes screen](docs/screenshots/student-routes.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-route-details.png --> ![Route details screen](docs/screenshots/student-route-details.png) |
+| **02 · Your transport**<br>Assigned route and transport profile | **03 · Explore availability**<br>Afternoon service for a selected date | **04 · Choose a service**<br>Review route and shuttle information |
+
+| Seat selection | Booking confirmation | My bookings |
+|:---:|:---:|:---:|
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/student-seats.png --> ![Seat selection screen](docs/screenshots/student-seats.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-confirmation.png --> ![Booking confirmation screen](docs/screenshots/student-confirmation.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-bookings.png --> ![Bookings screen](docs/screenshots/student-bookings.png) |
+| **05 · Pick a seat**<br>Available, selected, booked and restricted states | **06 · Reserve your ride**<br>Booking result and ride details | **07 · Manage plans**<br>View or cancel a reservation |
+
+### For transport administrators
+
+The Admin app provides operational tools for route and assignment management. Route records describe services available to the system; date-based afternoon assignments determine what is offered to students. Dashboard and schedule views bring daily operations together.
+
+| Admin sign in | Operations dashboard | Route management |
+|:---:|:---:|:---:|
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-login.png --> ![Admin login](docs/screenshots/admin-login.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-dashboard.png --> ![Admin dashboard](docs/screenshots/admin-dashboard.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-routes.png --> ![Route management](docs/screenshots/admin-routes.png) |
+| **01 · Admin access** | **02 · Daily overview** | **03 · Maintain routes** |
+
+| Afternoon assignments | Schedule view | Assignment editor |
+|:---:|:---:|:---:|
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-assignments.png --> ![Afternoon assignments](docs/screenshots/admin-assignments.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-schedule.png --> ![Admin schedule](docs/screenshots/admin-schedule.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-assignment-editor.png --> ![Assignment editor](docs/screenshots/admin-assignment-editor.png) |
+| **04 · Organize service** | **05 · Review the day** | **06 · Set route and shuttle slots** |
+
+> **Screenshot placeholders:** Add images under `docs/screenshots/` using the paths above, or change the links to match your image files. Additional empty, loading, validation and success states can help explain the complete experience. Do not use real student personal information in screenshots.
+
+## How SHUBUS fits together
 
 ```mermaid
 flowchart LR
-  S[Student Flutter module] --> L[Combined Flutter launcher]
-  A[Admin Flutter module] --> L
-  L -->|HTTP / JSON| B[Spring Boot REST API]
-  B -->|Spring Data JPA| P[(PostgreSQL on Neon)]
+  subgraph App[Flutter application]
+    Launcher[SHUBUS launcher]
+    Student[Student experience]
+    Admin[Admin experience]
+    Launcher --> Student
+    Launcher --> Admin
+  end
+  Student -->|HTTP / JSON| API[Spring Boot REST API]
+  Admin -->|HTTP / JSON| API
+  API --> Services[Business services]
+  Services --> Repositories[Spring Data repositories]
+  Repositories --> DB[(PostgreSQL · Neon)]
 ```
 
-<!-- DIAGRAM PLACEHOLDER: replace Mermaid with exported architecture image if desired (docs/assets/architecture.png) -->
+<!-- DIAGRAM PLACEHOLDER: docs/assets/system-architecture.png — polished export of the flow above -->
 
-## Repository layout
+The clients present the user experience. The API owns shared workflow rules and persistence operations. Database entities represent persistent records, repositories query them, and services coordinate actions such as availability, booking, and assignment management.
+
+## What the system supports
+
+| Student services | Administration | Shared platform |
+|---|---|---|
+| Student and transport profile lookup | Admin sign-in and dashboard | Flutter launcher with Student/Admin entry points |
+| Afternoon route availability by date | Route creation and maintenance | Spring Boot REST API |
+| Seat availability and seat selection | Date-specific afternoon assignments | PostgreSQL persistence via Spring Data JPA |
+| Create, view and cancel bookings | Schedule and route operations | Centralized booking, date and shuttle-slot rules |
+
+Backend source also includes bus registration and route-to-bus API components. The supplied database reference does not confirm those tables in the live catalog, so they are described as code areas rather than guaranteed deployed schema.
+
+## Data at a glance
+
+The documented database is PostgreSQL hosted on Neon. The supplied database reference reports six catalog tables from an earlier export: `students`, `student_transport_profiles`, `routes`, `afternoon_route_assignments`, `bookings`, and `admin_users`. It marks that export as **partially verified**: several column positions are missing, and bus-related source entities are not confirmed in the catalog.
+
+<!-- DATABASE DIAGRAM PLACEHOLDER: docs/assets/database-erd.png — create only from a current verified schema export -->
+
+See [SDC.md](SDC.md#database-reference-and-data-model) for table notes, relationships, known gaps and safe schema verification queries.
+
+## Technology
+
+- **Mobile and app UI:** Flutter / Dart
+- **API:** Java 21, Spring Boot, Spring MVC
+- **Persistence:** Spring Data JPA / Hibernate
+- **Database:** PostgreSQL (Neon deployment reference)
+- **Client transport:** HTTP with JSON payloads
+
+## Repository map
 
 ```text
-.
-├── frontend/             # Combined Flutter launcher (Student + Admin)
-├── frontend-student/     # Student Flutter module
-├── frontend-admin/       # Admin Flutter module
-└── backend/              # Spring Boot API, JPA entities and repositories
+SHUBUS-FINAL/
+├── frontend/              # Combined launcher application
+│   └── lib/                # Entry point and app selection screen
+├── frontend-student/       # Student Flutter module
+│   └── lib/features/       # Profile, routes, bookings, seats, dashboard
+├── frontend-admin/         # Admin Flutter module
+│   └── lib/                # Login, dashboard, routes and assignments
+└── backend/                # Spring Boot REST API and persistence layer
+    └── src/main/java/      # Controllers, DTOs, entities, repositories, services
 ```
 
-## Features represented in this workspace
+## Project documentation
 
-- Student profile/bootstrap and transport profile lookup.
-- Afternoon route availability and seat inventory.
-- Create, read and cancel student bookings.
-- Admin login, dashboard, route management, schedule and afternoon route assignments.
-- Bus registration and route-to-bus API areas are present in backend source; their backing schema must be checked against the live database reference before assuming table details.
-- Date-aware booking, operational-day and shuttle-slot rules are implemented in backend utilities/services.
+- **[SDC](SDC.md)** — detailed technical handover, application/file map, workflows, API contracts, database status, configuration and operations.
+- **[Database reference](DBREF.md)** — the supplied SHUBUS database reference is a partial schema guide. Its definitions should be verified against the intended live database before schema work.
 
-## Getting started
+## Getting the application running
 
-### Prerequisites
+The combined launcher is in `frontend/`; the API is in `backend/`. The backend expects a pre-provisioned PostgreSQL schema and uses environment variables for database connection configuration. Setup details and configuration touchpoints are in [SDC.md](SDC.md#local-development-and-configuration).
 
-- Flutter SDK compatible with Dart `^3.11.5`.
-- Java 21 and Maven (or the included Maven wrapper).
-- A PostgreSQL database provisioned with the schema expected by the backend. Neon is the documented host.
+<details>
+<summary><strong>Local developer quick start</strong></summary>
 
-### Configure the backend
-
-Set `SHUBUS_DB_URL`, `SHUBUS_DB_USERNAME`, and `SHUBUS_DB_PASSWORD` in your local environment. Use `backend/src/main/resources/application.properties.example` as the configuration reference. Never commit real credentials. The example specifies `spring.jpa.hibernate.ddl-auto=none`; the backend expects pre-provisioned database tables.
+With Java 21 and Flutter installed, configure `SHUBUS_DB_URL`, `SHUBUS_DB_USERNAME`, and `SHUBUS_DB_PASSWORD` locally, then start the API:
 
 ```powershell
-$env:SHUBUS_DB_URL = "jdbc:postgresql://<host>/<database>?sslmode=require"
-$env:SHUBUS_DB_USERNAME = "<username>"
-$env:SHUBUS_DB_PASSWORD = "<password>"
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-The backend listens on port `8081` by default. Configure the Flutter API base URL for the target device/emulator in the relevant `api_config.dart` files before running clients.
-
-### Run the combined Flutter app
+Fetch Flutter dependencies and launch the combined app:
 
 ```powershell
 cd frontend
@@ -85,32 +152,17 @@ flutter pub get
 flutter run
 ```
 
-The launcher imports both modules using local path dependencies. Run `flutter pub get` from the launcher directory after dependency changes.
+The backend example binds to port `8081`. The clients' API base URLs must point to an address reachable from the selected device or emulator. Do not commit database credentials.
 
-## API and data
-
-The API is organized under `/api`. Important areas include `/api/students`, `/api/students/bookings`, `/api/admin/auth`, `/api/admin/dashboard`, `/api/admin/routes`, `/api/admin/afternoon-routes`, and `/api/admin/schedule`. See [SDC.md](SDC.md) for the controller inventory and implementation notes.
-
-The database reference is **partially verified**, not a complete schema dump. It documents PostgreSQL/Neon and reports six catalog tables: `admin_users`, `afternoon_route_assignments`, `bookings`, `routes`, `student_transport_profiles`, and `students`. It also mentions `buses`, `bus_allowed_routes`, and `mock_bus_registrations` from source notes, but says their presence in the live catalog is unconfirmed. The reference contains missing column positions for some tables. See [SDC.md](SDC.md#database-reference-and-verification-status) before making schema assumptions.
-
-<!-- DIAGRAM PLACEHOLDER: add an ER diagram generated from verified live Neon metadata at docs/assets/database-er.png -->
-
-## Documentation
-
-- [SDC.md](SDC.md) — system and developer documentation, API map, data model status, workflows and operations.
-- [Database reference PDF](C:/Users/New/Downloads/SHUBUS_COMPLETE_DATABASE_REFERENCE_FOR_CODEX.pdf) — source supplied for this documentation; local path is specific to its authoring machine.
-
-## Roadmap for project visuals
-
-- [ ] Add hero/banner image: `docs/assets/shubus-hero.png`
-- [ ] Add student and admin screenshots under `docs/screenshots/`
-- [ ] Export architecture diagram: `docs/assets/architecture.png`
-- [ ] Add a database ER diagram only after a complete schema-only export is verified
-
-## Contributing
-
-Keep API contracts and Flutter models in sync. Check the backend entities, services and repositories before changing database assumptions. Use schema-only metadata for documentation; do not add credentials or production data to the repository.
+</details>
 
 ---
 
-<p align="center"><strong>SHUBUS · Make campus transport easier to plan.</strong></p>
+<div align="center">
+
+### SHUBUS
+**Know the service. Choose your ride.**
+
+*Student reservations and transport operations, connected in one platform.*
+
+</div>
