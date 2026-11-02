@@ -38,17 +38,6 @@ import com.shubus.backend.util.ShuttleSlotRules;
 public class AfternoonRouteAssignmentController {
 
 
-    private static final List<String> ALANDUR_SLOTS =
-            List.of("A1", "A2", "A3", "A4", "A5");
-
-    private static final List<String> VELACHERY_SLOTS =
-            List.of("V1", "V2", "V3");
-
-    private static final List<List<String>> SHUTTLE_SEQUENCES = List.of(
-            ALANDUR_SLOTS,
-            VELACHERY_SLOTS
-    );
-
     private final AfternoonRouteAssignmentRepository assignmentRepository;
     private final RouteRepository routeRepository;
 
@@ -83,6 +72,8 @@ public class AfternoonRouteAssignmentController {
                         HttpStatus.BAD_REQUEST,
                         "endDate cannot be before date");
             }
+
+
             return assignmentRepository.findByAssignmentDateBetween(date, endDate)
                     .stream()
                     .map(this::toResponse)
@@ -116,6 +107,8 @@ public class AfternoonRouteAssignmentController {
 
 
         List<Long> routeIds = request.routeIds();
+
+
         if (new HashSet<>(routeIds).size() != routeIds.size()) {
             return ResponseEntity.badRequest().body(
                     java.util.Map.of("error", "routeIds contains duplicates"));
@@ -141,27 +134,50 @@ public class AfternoonRouteAssignmentController {
 
 
         List<Route> routes = new ArrayList<>();
+
+
         for (Long routeId : routeIds) {
             if (routeId == null) {
                 return ResponseEntity.badRequest().body(
                         java.util.Map.of("error", "routeIds cannot contain null"));
             }
+
+
             Route route = routeRepository.findById(routeId).orElse(null);
+
+
             if (route == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                         java.util.Map.of("error", "Route not found: " + routeId));
             }
+
+
             if (assignmentRepository.existsByAssignmentDateAndRoute_Id(
                     request.date(), routeId)) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
                         java.util.Map.of("error", "Route " + routeId +
                                 " is already assigned for " + request.date()));
             }
+
+
+            if ("SHUTTLE".equals(normalizeType(request.assignmentType()))) {
+                String acError = validateShuttleAcType(route, shuttleGroup);
+
+
+                if (acError != null) {
+                    return ResponseEntity.badRequest().body(
+                            java.util.Map.of("error", acError));
+                }
+            }
+
+
             routes.add(route);
         }
 
 
         List<AfternoonRouteAssignmentResponse> responses = new ArrayList<>();
+
+
         for (Route route : routes) {
             AfternoonRouteAssignment assignment = new AfternoonRouteAssignment();
             assignment.setRoute(route);
@@ -187,6 +203,8 @@ public class AfternoonRouteAssignmentController {
 
         String validationError = validateRequest(
                 date, List.of(routeId), assignmentType, shuttleGroup);
+
+
         if (validationError != null) {
             return ResponseEntity.badRequest().body(
                     java.util.Map.of("error", validationError));
@@ -194,6 +212,8 @@ public class AfternoonRouteAssignmentController {
 
 
         Route route = routeRepository.findById(routeId).orElse(null);
+
+
         if (route == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                     java.util.Map.of("error", "Route not found: " + routeId));
@@ -221,6 +241,15 @@ public class AfternoonRouteAssignmentController {
                         java.util.Map.of("error", slotError)
                 );
             }
+
+
+            String acError = validateShuttleAcType(route, normalizedGroup);
+
+
+            if (acError != null) {
+                return ResponseEntity.badRequest().body(
+                        java.util.Map.of("error", acError));
+            }
         }
 
 
@@ -244,6 +273,8 @@ public class AfternoonRouteAssignmentController {
 
 
         AfternoonRouteAssignment assignment = assignmentRepository.findById(id).orElse(null);
+
+
         if (assignment == null) {
             return ResponseEntity.notFound().build();
         }
@@ -254,13 +285,34 @@ public class AfternoonRouteAssignmentController {
                 List.of(assignment.getRoute().getId()),
                 assignmentType,
                 shuttleGroup);
+
+
         if (validationError != null) {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", validationError));
         }
 
 
+        String normalizedGroup = normalizeGroup(shuttleGroup);
+
+
+        if ("SHUTTLE".equals(normalizeType(assignmentType))) {
+            String acError = validateShuttleAcType(
+                    assignment.getRoute(),
+                    normalizedGroup
+            );
+
+
+            if (acError != null) {
+                return ResponseEntity.badRequest().body(
+                        java.util.Map.of("error", acError));
+            }
+        }
+
+
         assignment.setAssignmentType(normalizeType(assignmentType));
-        assignment.setShuttleGroup(normalizeGroup(shuttleGroup));
+        assignment.setShuttleGroup(normalizedGroup);
+
+
         return ResponseEntity.ok(toResponse(assignmentRepository.save(assignment)));
     }
 
@@ -293,13 +345,20 @@ public class AfternoonRouteAssignmentController {
 
 
     private String validateRequest(
-            LocalDate date, List<Long> routeIds, String assignmentType, String shuttleGroup) {
+            LocalDate date,
+            List<Long> routeIds,
+            String assignmentType,
+            String shuttleGroup) {
+
+
         if (date == null) return "date is required";
         if (routeIds == null || routeIds.isEmpty()) return "At least one routeId is required";
         if (assignmentType == null) return "assignmentType is required";
 
 
         String type = assignmentType.trim().toUpperCase(Locale.ROOT);
+
+
         if (!type.equals("REGULAR") && !type.equals("SHUTTLE")) {
             return "assignmentType must be REGULAR or SHUTTLE";
         }
@@ -308,15 +367,78 @@ public class AfternoonRouteAssignmentController {
         if (type.equals("REGULAR") && shuttleGroup != null && !shuttleGroup.isBlank()) {
             return "REGULAR assignments cannot have a shuttleGroup";
         }
+
+
         if (type.equals("SHUTTLE")) {
             if (shuttleGroup == null || shuttleGroup.isBlank()) {
                 return "SHUTTLE assignments require a shuttleGroup or slot";
             }
+
+
             if (!ShuttleSlotRules.isSupported(shuttleGroup)) {
                 return "Unsupported shuttle group/slot: " + shuttleGroup;
             }
         }
+
+
         return null;
+    }
+
+
+    private String validateShuttleAcType(Route route, String shuttleGroup) {
+        String requiredAcType = ShuttleSlotRules.allowedAcType(shuttleGroup);
+
+
+        if (requiredAcType == null) {
+            return null;
+        }
+
+
+        String routeAcType = normalizeAcType(route.getAcType());
+
+
+        if (!routeAcType.equals(requiredAcType)) {
+            return getDestinationLabel(shuttleGroup) +
+                    " shuttle slots accept " + requiredAcType +
+                    " buses only. Selected bus is " + routeAcType + ".";
+        }
+
+
+        return null;
+    }
+
+
+    private String normalizeAcType(String acType) {
+        if (acType == null || acType.isBlank()) {
+            return "UNKNOWN";
+        }
+
+
+        String value = acType.trim().toUpperCase(Locale.ROOT);
+
+
+        if (value.contains("NON")) {
+            return "NON-AC";
+        }
+
+
+        if (value.contains("AC")) {
+            return "AC";
+        }
+
+
+        return value;
+    }
+
+
+    private String getDestinationLabel(String shuttleGroup) {
+        return switch (ShuttleSlotRules.slotPrefix(shuttleGroup)) {
+            case "A" -> "Alandur Metro";
+            case "V" -> "Velachery";
+            case "S" -> "Sholinganallur";
+            case "T" -> "Tambaram";
+            default -> "This";
+        };
     }
 
 
@@ -347,41 +469,10 @@ public class AfternoonRouteAssignmentController {
         }
 
 
-        List<String> sequence = sequenceForSlot(slot);
-
-
-        if (sequence == null) {
-            return null;
-        }
-
-
-        int slotIndex = sequence.indexOf(slot);
-
-
-        for (int i = 0; i < slotIndex; i++) {
-            String previousSlot = sequence.get(i);
-
-
+        for (String previousSlot : ShuttleSlotRules.requiredPreviousSlots(slot)) {
             if (!existingSlots.contains(previousSlot)) {
                 return "Shuttle slot " + previousSlot +
                         " must be assigned before " + slot;
-            }
-        }
-
-
-        return null;
-    }
-
-
-    private List<String> sequenceForSlot(String slot) {
-        if (slot == null) {
-            return null;
-        }
-
-
-        for (List<String> sequence : SHUTTLE_SEQUENCES) {
-            if (sequence.contains(slot)) {
-                return sequence;
             }
         }
 
@@ -395,34 +486,26 @@ public class AfternoonRouteAssignmentController {
                 assignmentRepository.findByAssignmentDate(date);
 
 
-        for (List<String> sequence : SHUTTLE_SEQUENCES) {
+        List<String> prefixes = List.of("A", "V", "S", "T");
+
+
+        for (String prefix : prefixes) {
             List<AfternoonRouteAssignment> shuttleAssignments = assignments
                     .stream()
                     .filter(a -> "SHUTTLE".equals(a.getAssignmentType()))
                     .filter(a -> a.getShuttleGroup() != null)
-                    .filter(a -> sequence.contains(
-                            a.getShuttleGroup().trim().toUpperCase(Locale.ROOT)
+                    .filter(a -> ShuttleSlotRules.slotPrefix(a.getShuttleGroup()) != null)
+                    .filter(a -> ShuttleSlotRules.slotPrefix(a.getShuttleGroup()).equals(prefix))
+                    .sorted((a, b) -> Integer.compare(
+                            ShuttleSlotRules.slotNumber(a.getShuttleGroup()),
+                            ShuttleSlotRules.slotNumber(b.getShuttleGroup())
                     ))
-                    .sorted((a, b) -> {
-                        String groupA = a.getShuttleGroup()
-                                .trim()
-                                .toUpperCase(Locale.ROOT);
-                        String groupB = b.getShuttleGroup()
-                                .trim()
-                                .toUpperCase(Locale.ROOT);
-
-
-                        return Integer.compare(
-                                sequence.indexOf(groupA),
-                                sequence.indexOf(groupB)
-                        );
-                    })
                     .toList();
 
 
             for (int i = 0; i < shuttleAssignments.size(); i++) {
                 AfternoonRouteAssignment assignment = shuttleAssignments.get(i);
-                String targetSlot = sequence.get(i);
+                String targetSlot = prefix + (i + 1);
                 String currentSlot = assignment.getShuttleGroup()
                         .trim()
                         .toUpperCase(Locale.ROOT);
@@ -451,6 +534,8 @@ public class AfternoonRouteAssignmentController {
     private AfternoonRouteAssignmentResponse toResponse(
             AfternoonRouteAssignment assignment) {
         Route route = assignment.getRoute();
+
+
         return new AfternoonRouteAssignmentResponse(
                 assignment.getId(),
                 route.getId(),

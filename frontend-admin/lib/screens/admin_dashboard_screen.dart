@@ -181,6 +181,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }).toList();
   }
 
+  /// Highest slot number for a prefix, e.g. A1..A7 -> "Open till A7".
+  /// Works for any number of extra slots (A6, A7, V4, S2, T2 ...).
+  String _openTill(List<Map<String, dynamic>> buses, String prefix) {
+    final pattern = RegExp('^$prefix' r'(\d+)$');
+    var highest = 0;
+
+    for (final bus in buses) {
+      final match = pattern.firstMatch(_group(bus));
+      final number = match == null ? 0 : int.parse(match.group(1)!);
+      if (number > highest) highest = number;
+    }
+
+    return highest == 0 ? '' : 'Open till $prefix$highest';
+  }
+
+  String _slotFootnote(
+    List<Map<String, dynamic>> buses,
+    String prefix,
+    String destinationLabel,
+  ) {
+    final open = _openTill(buses, prefix);
+    if (open.isEmpty) {
+      return 'No $destinationLabel slots in the selected schedule';
+    }
+
+    final booked = buses.fold<int>(0, (s, b) => s + _bookings(b));
+    final capacity = buses.fold<int>(0, (s, b) => s + _capacity(b));
+    return '$open • $booked / $capacity seats booked';
+  }
+
+  String _bookingsLabel(List<Map<String, dynamic>> buses) {
+    final booked = buses.fold<int>(0, (s, b) => s + _bookings(b));
+    final capacity = buses.fold<int>(0, (s, b) => s + _capacity(b));
+    return '$booked${capacity > 0 ? ' / $capacity' : ''}';
+  }
+
   Future<void> showBusDetails(
     String title,
     List<Map<String, dynamic>> buses,
@@ -476,34 +512,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final sholi = shuttleBuses('SHOLINGANALLUR');
     final tambaram = shuttleBuses('TAMBARAM');
 
-    final aSlots = alandur
-        .map(_group)
-        .where((g) => RegExp(r'^A[1-5]$').hasMatch(g))
-        .toSet();
-
-    final vSlots = velachery
-        .map(_group)
-        .where((g) => RegExp(r'^V[1-3]$').hasMatch(g))
-        .toSet();
-
-    final aOpen = aSlots.isEmpty
-        ? ''
-        : 'Open till ${aSlots.reduce((a, b) => int.parse(a.substring(1)) > int.parse(b.substring(1)) ? a : b)}';
-
-    final vOpen = vSlots.isEmpty
-        ? ''
-        : 'Open till ${vSlots.reduce((a, b) => int.parse(a.substring(1)) > int.parse(b.substring(1)) ? a : b)}';
-
-    final aCapacity = alandur.fold<int>(0, (sum, bus) => sum + _capacity(bus));
-
-    final vCapacity = velachery.fold<int>(
-      0,
-      (sum, bus) => sum + _capacity(bus),
-    );
-
-    final aBookings = alandur.fold<int>(0, (s, b) => s + _bookings(b));
-    final vBookings = velachery.fold<int>(0, (s, b) => s + _bookings(b));
-
     return RefreshIndicator(
       onRefresh: refresh,
       child: ListView(
@@ -646,11 +654,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       title: 'Alandur Metro',
                       subtitle: 'Shuttle buses',
                       count: '${alandur.length}',
-                      bookings:
-                          '$aBookings${aCapacity > 0 ? ' / $aCapacity' : ''}',
-                      footnote: aOpen.isEmpty
-                          ? 'No Alandur slots in the selected schedule'
-                          : '$aOpen • $aBookings / $aCapacity seats booked',
+                      bookings: _bookingsLabel(alandur),
+                      footnote: _slotFootnote(alandur, 'A', 'Alandur'),
                       onTap: () => showBusDetails('Alandur Metro', alandur),
                     ),
                   ),
@@ -660,11 +665,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       title: 'Velachery',
                       subtitle: 'Shuttle buses',
                       count: '${velachery.length}',
-                      bookings:
-                          '$vBookings${vCapacity > 0 ? ' / $vCapacity' : ''}',
-                      footnote: vOpen.isEmpty
-                          ? 'No Velachery slots in the selected schedule'
-                          : '$vOpen • $vBookings / $vCapacity seats booked',
+                      bookings: _bookingsLabel(velachery),
+                      footnote: _slotFootnote(velachery, 'V', 'Velachery'),
                       onTap: () => showBusDetails('Velachery', velachery),
                     ),
                   ),
@@ -674,8 +676,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       title: 'Sholinganallur',
                       subtitle: 'Shuttle buses',
                       count: '${sholi.length}',
-                      bookings:
-                          '${sholi.fold<int>(0, (s, b) => s + _bookings(b))}',
+                      bookings: _bookingsLabel(sholi),
+                      footnote: _slotFootnote(sholi, 'S', 'Sholinganallur'),
                       onTap: () => showBusDetails('Sholinganallur', sholi),
                     ),
                   ),
@@ -685,8 +687,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       title: 'Tambaram',
                       subtitle: 'Shuttle buses',
                       count: '${tambaram.length}',
-                      bookings:
-                          '${tambaram.fold<int>(0, (s, b) => s + _bookings(b))}',
+                      bookings: _bookingsLabel(tambaram),
+                      footnote: _slotFootnote(tambaram, 'T', 'Tambaram'),
                       onTap: () => showBusDetails('Tambaram', tambaram),
                     ),
                   ),

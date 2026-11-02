@@ -7,6 +7,13 @@ public final class SeatLayout {
     private SeatLayout() {
     }
 
+    /** Girls: rows 1-5. Faculty: row 6 (centre). Boys: rows 7-11. */
+    private static final int GIRLS_FIRST_ROW = 1;
+    private static final int GIRLS_LAST_ROW = 5;
+    private static final int FACULTY_ROW = 6;
+    private static final int BOYS_FIRST_ROW = 7;
+    private static final int BOYS_LAST_ROW = 11;
+
     private static final Set<String> VALID_SEATS = Set.of(
             "1A", "1D", "1E", "1F",
 
@@ -28,7 +35,7 @@ public final class SeatLayout {
     }
 
     public static boolean isFacultySeat(String seat) {
-        return seat != null && seat.startsWith("5");
+        return isValidSeat(seat) && getRow(seat) == FACULTY_ROW;
     }
 
     public static boolean isStudentBookableSeat(String seat) {
@@ -41,7 +48,7 @@ public final class SeatLayout {
         }
 
         int row = getRow(seat);
-        return row >= 1 && row <= 4;
+        return row >= GIRLS_FIRST_ROW && row <= GIRLS_LAST_ROW;
     }
 
     public static boolean isBoysSeat(String seat) {
@@ -50,7 +57,7 @@ public final class SeatLayout {
         }
 
         int row = getRow(seat);
-        return row >= 6 && row <= 11;
+        return row >= BOYS_FIRST_ROW && row <= BOYS_LAST_ROW;
     }
 
     private static int getRow(String seat) {
@@ -71,6 +78,18 @@ public final class SeatLayout {
     public static int getStudentBookableSeatCount() {
         return (int) VALID_SEATS.stream()
                 .filter(SeatLayout::isStudentBookableSeat)
+                .count();
+    }
+
+    public static int getGirlsSeatCount() {
+        return (int) VALID_SEATS.stream()
+                .filter(SeatLayout::isGirlsSeat)
+                .count();
+    }
+
+    public static int getBoysSeatCount() {
+        return (int) VALID_SEATS.stream()
+                .filter(SeatLayout::isBoysSeat)
                 .count();
     }
 }

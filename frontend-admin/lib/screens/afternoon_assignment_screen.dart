@@ -18,12 +18,85 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   static const Color paleBlue = Color(0xFFF0F6FF);
   static const Color danger = Color(0xFFB42318);
 
+  /// Default slots per destination. Extra slots (A6, V4, S2, T2...) are added
+  /// at runtime through the "Add more" button or restored from the backend.
   static const Map<String, List<String>> destinations = {
     'ALANDUR METRO': ['A1', 'A2', 'A3', 'A4', 'A5'],
     'VELACHERY': ['V1', 'V2', 'V3'],
     'SHOLINGANALLUR': ['S1'],
     'TAMBARAM': ['T1'],
   };
+
+  static const Map<String, String> prefixToDestination = {
+    'A': 'ALANDUR METRO',
+    'V': 'VELACHERY',
+    'S': 'SHOLINGANALLUR',
+    'T': 'TAMBARAM',
+  };
+
+  static const List<String> prefixOrder = ['A', 'V', 'S', 'T'];
+  static const int maxSlotNumber = 99;
+
+  static final RegExp _slotPattern = RegExp(r'^([AVST])(\d+)$');
+
+  // ---------------------------------------------------------------------
+  // Static slot / AC helpers
+  // ---------------------------------------------------------------------
+
+  static String? slotPrefix(String slot) =>
+      _slotPattern.firstMatch(slot.trim().toUpperCase())?.group(1);
+
+  static int? slotNumber(String slot) {
+    final m = _slotPattern.firstMatch(slot.trim().toUpperCase());
+    if (m == null) return null;
+    return int.tryParse(m.group(2)!);
+  }
+
+  static int compareSlots(String a, String b) {
+    final pa = prefixOrder.indexOf(slotPrefix(a) ?? '');
+    final pb = prefixOrder.indexOf(slotPrefix(b) ?? '');
+    if (pa != pb) return pa.compareTo(pb);
+    return (slotNumber(a) ?? 0).compareTo(slotNumber(b) ?? 0);
+  }
+
+  /// true = AC, false = Non-AC, null = unknown.
+  /// Accepts: AC, NON_AC, NON-AC, "non ac", nonac...
+  static bool? isAcValue(String? raw) {
+    if (raw == null) return null;
+    final cleaned = raw.toUpperCase().replaceAll(RegExp(r'[^A-Z]'), '');
+    if (cleaned.isEmpty) return null;
+    if (cleaned.startsWith('NON')) return false;
+    if (cleaned == 'AC') return true;
+    return null;
+  }
+
+  static String acLabel(String? raw) {
+    final ac = isAcValue(raw);
+    if (ac == null) return raw ?? '';
+    return ac ? 'AC' : 'Non-AC';
+  }
+
+  /// A, V, S slots are AC only. T slots are Non-AC only.
+  static bool slotRequiresAc(String slot) => slotPrefix(slot) != 'T';
+
+  static String slotRuleLabel(String slot) =>
+      slotRequiresAc(slot) ? 'AC buses only' : 'Non-AC buses only';
+
+  static bool routeMatchesSlot(RouteModel r, String slot) {
+    final ac = isAcValue(r.acType);
+    if (ac == null) return false;
+    return ac == slotRequiresAc(slot);
+  }
+
+  static String? destinationOfSlot(String slot) {
+    final prefix = slotPrefix(slot);
+    if (prefix == null) return null;
+    return prefixToDestination[prefix];
+  }
+
+  // ---------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------
 
   List<RouteModel> routes = [];
   Map<DateTime, List<dynamic>> schedules = {};
@@ -36,36 +109,20 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   final Set<int> selectedAssignmentIds = {};
 
   final Set<int> pendingRegular = {};
+
+  /// Slots currently displayed for each destination (defaults + extras).
+  final Map<String, List<String>> destinationSlots = {
+    for (final e in destinations.entries) e.key: List<String>.from(e.value),
+  };
+
   final Map<String, Set<int>> pendingShuttle = {
-    for (final slot in [
-      'A1',
-      'A2',
-      'A3',
-      'A4',
-      'A5',
-      'V1',
-      'V2',
-      'V3',
-      'S1',
-      'T1',
-    ])
-      slot: <int>{},
+    for (final slots in destinations.values)
+      for (final slot in slots) slot: <int>{},
   };
 
   final Map<String, Set<int>> shuttle = {
-    for (final slot in [
-      'A1',
-      'A2',
-      'A3',
-      'A4',
-      'A5',
-      'V1',
-      'V2',
-      'V3',
-      'S1',
-      'T1',
-    ])
-      slot: <int>{},
+    for (final slots in destinations.values)
+      for (final slot in slots) slot: <int>{},
   };
 
   int assignmentCategory = 0;
@@ -85,22 +142,26 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   final TextEditingController assignedSearch = TextEditingController();
 
   final Map<String, TextEditingController> slotSearch = {
-    for (final slot in [
-      'A1',
-      'A2',
-      'A3',
-      'A4',
-      'A5',
-      'V1',
-      'V2',
-      'V3',
-      'S1',
-      'T1',
-    ])
-      slot: TextEditingController(),
+    for (final slots in destinations.values)
+      for (final slot in slots) slot: TextEditingController(),
   };
 
   StateSetter? _editSheetSetState;
+
+  Set<int> shuttleSet(String slot) =>
+      shuttle.putIfAbsent(slot, () => <int>{});
+
+  Set<int> pendingSet(String slot) =>
+      pendingShuttle.putIfAbsent(slot, () => <int>{});
+
+  TextEditingController searchControllerFor(String slot) =>
+      slotSearch.putIfAbsent(slot, () => TextEditingController());
+
+  void _ensureSlotState(String slot) {
+    shuttleSet(slot);
+    pendingSet(slot);
+    searchControllerFor(slot);
+  }
 
   @override
   void initState() {
@@ -387,6 +448,8 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
           (id) => !allAssignmentIds.contains(id),
         );
 
+        _rebuildDestinationSlots();
+
         loading = false;
         loadError = null;
       });
@@ -406,6 +469,48 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     }
   }
 
+  /// Rebuilds the displayed slots from the defaults plus whatever the backend
+  /// has for the selected date (and any slot that currently has a selection).
+  /// Because compaction happens on the backend, a reload after a delete
+  /// automatically shrinks the list (A6 disappears when only A1-A5 remain).
+  void _rebuildDestinationSlots() {
+    for (final entry in destinations.entries) {
+      final dest = entry.key;
+      final defaults = entry.value;
+      final prefix = slotPrefix(defaults.first)!;
+
+      var maxNumber = defaults.length;
+
+      for (final a in scheduleFor(selectedDate)) {
+        if (a is! Map) continue;
+        if ('${a['assignmentType'] ?? ''}'.toUpperCase() != 'SHUTTLE') continue;
+
+        final group = '${a['shuttleGroup'] ?? ''}'.trim().toUpperCase();
+        if (slotPrefix(group) != prefix) continue;
+
+        final n = slotNumber(group);
+        if (n != null && n > maxNumber && n <= maxSlotNumber) {
+          maxNumber = n;
+        }
+      }
+
+      for (final s in shuttle.entries) {
+        if (s.value.isEmpty || slotPrefix(s.key) != prefix) continue;
+        final n = slotNumber(s.key);
+        if (n != null && n > maxNumber && n <= maxSlotNumber) {
+          maxNumber = n;
+        }
+      }
+
+      final slots = [for (var i = 1; i <= maxNumber; i++) '$prefix$i'];
+      destinationSlots[dest] = slots;
+
+      for (final slot in slots) {
+        _ensureSlotState(slot);
+      }
+    }
+  }
+
   List<dynamic> scheduleFor(DateTime d) => schedules[day(d)] ?? [];
 
   bool assignedOn(DateTime d, int id) =>
@@ -415,7 +520,8 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     return scheduleFor(date).any(
       (a) =>
           '${a['assignmentType'] ?? ''}'.toUpperCase() == 'SHUTTLE' &&
-          '${a['shuttleGroup'] ?? ''}'.toUpperCase() == slot.toUpperCase(),
+          '${a['shuttleGroup'] ?? ''}'.trim().toUpperCase() ==
+              slot.toUpperCase(),
     );
   }
 
@@ -432,28 +538,17 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
         pendingShuttle[slot]?.isNotEmpty == true;
   }
 
-  String? destinationOfSlot(String slot) {
-    for (final entry in destinations.entries) {
-      if (entry.value.contains(slot)) {
-        return entry.key;
-      }
-    }
-    return null;
-  }
-
   bool isShuttleSlotLocked(String slot) {
     if (isShuttleSlotAlreadyAssigned(slot)) {
       return true;
     }
 
-    final destination = destinationOfSlot(slot);
-    if (destination == null) return true;
+    final prefix = slotPrefix(slot);
+    final number = slotNumber(slot);
+    if (prefix == null || number == null || number < 1) return true;
 
-    final slots = destinations[destination] ?? [];
-    final slotIndex = slots.indexOf(slot);
-
-    for (var i = 0; i < slotIndex; i++) {
-      final previousSlot = slots[i];
+    for (var i = 1; i < number; i++) {
+      final previousSlot = '$prefix$i';
 
       final filled =
           isShuttleSlotFilled(selectedDate, previousSlot) ||
@@ -466,6 +561,84 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
 
     return false;
   }
+
+  // ---------------------------------------------------------------------
+  // Add more
+  // ---------------------------------------------------------------------
+
+  List<String> slotsOf(String destination) =>
+      destinationSlots[destination] ?? const [];
+
+  String? nextSlotFor(String destination) {
+    final slots = slotsOf(destination);
+    if (slots.isEmpty) return null;
+
+    final prefix = slotPrefix(slots.first)!;
+    var maxNumber = 0;
+    for (final s in slots) {
+      final n = slotNumber(s) ?? 0;
+      if (n > maxNumber) maxNumber = n;
+    }
+
+    if (maxNumber + 1 > maxSlotNumber) return null;
+    return '$prefix${maxNumber + 1}';
+  }
+
+    /// A slot is "ready" if it is saved in the backend OR has a bus selected.
+  bool isSlotReady(String slot) =>
+      isShuttleSlotFilled(selectedDate, slot) || isShuttleSlotSelected(slot);
+
+  List<String> emptySlotsOf(String destination) =>
+      slotsOf(destination).where((s) => !isSlotReady(s)).toList();
+
+  /// Enabled when every displayed slot has a bus (saved or selected now).
+  bool canAddMoreSlot(String destination) {
+    if (saving || loading) return false;
+    if (nextSlotFor(destination) == null) return false;
+    return emptySlotsOf(destination).isEmpty;
+  }
+
+  void addMoreSlot(String destination) {
+    if (!canAddMoreSlot(destination)) {
+      _showToast('Fill all current slots before adding a new one.');
+      return;
+    }
+
+    final next = nextSlotFor(destination);
+    if (next == null) return;
+
+    setState(() {
+      slotsOf(destination); // ensure key exists
+      destinationSlots[destination] = [...slotsOf(destination), next];
+      _ensureSlotState(next);
+    });
+  }
+
+  bool canRemoveExtraSlot(String destination, String slot) {
+    final slots = slotsOf(destination);
+    final defaultCount = (destinations[destination] ?? const []).length;
+    if (slots.isEmpty || slots.last != slot) return false;
+    if ((slotNumber(slot) ?? 0) <= defaultCount) return false;
+    if (isShuttleSlotFilled(selectedDate, slot)) return false;
+    return true;
+  }
+
+  void removeExtraSlot(String destination, String slot) {
+    if (!canRemoveExtraSlot(destination, slot)) return;
+
+    setState(() {
+      shuttleSet(slot).clear();
+      pendingSet(slot).clear();
+      searchControllerFor(slot).clear();
+      destinationSlots[destination] = slotsOf(
+        destination,
+      ).where((s) => s != slot).toList();
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Selection state
+  // ---------------------------------------------------------------------
 
   int get selectedCount =>
       regular.length + shuttle.values.fold(0, (n, s) => n + s.length);
@@ -506,8 +679,14 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       return;
     }
 
+    final route = routes.where((r) => r.id == id).firstOrNull;
+    if (route == null || !routeMatchesSlot(route, slot)) {
+      _showToast('$slot accepts ${slotRuleLabel(slot)}.');
+      return;
+    }
+
     setState(() {
-      final set = shuttle[slot]!;
+      final set = shuttleSet(slot);
 
       if (set.contains(id)) {
         set.remove(id);
@@ -550,6 +729,84 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     }
   }
 
+  void _moveSelectionToPending() {
+    clearPendingAdditions();
+
+    pendingRegular.addAll(regular);
+
+    for (final entry in shuttle.entries) {
+      if (entry.value.isEmpty) continue;
+      pendingSet(entry.key).addAll(entry.value);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Validation
+  // ---------------------------------------------------------------------
+
+  /// Returns an error message, or null when the shuttle slot is valid to send.
+  /// [submitted] holds slots already saved successfully in the current run.
+  String? validateShuttleSubmission(
+    DateTime date,
+    String slot,
+    Set<int> ids,
+    Set<String> submitted,
+  ) {
+    final prefix = slotPrefix(slot);
+    final number = slotNumber(slot);
+
+    if (prefix == null ||
+        number == null ||
+        number < 1 ||
+        number > maxSlotNumber ||
+        destinationOfSlot(slot) == null) {
+      return 'invalid shuttle slot.';
+    }
+
+    if (ids.length != 1) {
+      return 'each shuttle slot must have exactly one bus.';
+    }
+
+    final routeId = ids.first;
+    final route = routes.where((r) => r.id == routeId).firstOrNull;
+
+    if (route == null) {
+      return 'selected bus no longer exists.';
+    }
+
+    if (!routeMatchesSlot(route, slot)) {
+      return '${route.routeNumber} is ${acLabel(route.acType)}; '
+          '$slot accepts ${slotRuleLabel(slot)}.';
+    }
+
+    if (isShuttleSlotFilled(date, slot)) {
+      return 'shuttle slot is already assigned.';
+    }
+
+    if (assignedOn(date, routeId)) {
+      return '${route.routeNumber} is already assigned on this date.';
+    }
+
+    for (var i = 1; i < number; i++) {
+      final previous = '$prefix$i';
+      if (!isShuttleSlotFilled(date, previous) &&
+          !submitted.contains(previous)) {
+        return 'previous slot $previous must be assigned first.';
+      }
+    }
+
+    return null;
+  }
+
+  List<String> _sortedSlotsWith(Map<String, Set<int>> source) {
+    final slots = source.entries
+        .where((e) => e.value.isNotEmpty)
+        .map((e) => e.key)
+        .toList();
+    slots.sort(compareSlots);
+    return slots;
+  }
+
   Future<void> assignToSelectedDate() async {
     if (pendingCount == 0 || saving) return;
 
@@ -576,52 +833,28 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
         }
       }
 
-      for (final entry in pendingShuttle.entries) {
-        if (entry.value.isEmpty) continue;
+      final submitted = <String>{};
 
-        final slot = entry.key;
-        final destination = destinationOfSlot(slot);
+      // Numeric order per prefix: A1, A2, ... A6, V1, ... S1, ... T1, ...
+      for (final slot in _sortedSlotsWith(pendingShuttle)) {
+        final ids = pendingSet(slot);
 
-        if (destination == null) {
-          failures.add('$dateLabel — $slot: invalid shuttle destination.');
-          continue;
-        }
-
-        final slots = destinations[destination] ?? [];
-        final slotIndex = slots.indexOf(slot);
-
-        var previousSlotsFilled = true;
-
-        for (var i = 0; i < slotIndex; i++) {
-          final previousSlot = slots[i];
-
-          if (!isShuttleSlotFilledOrPending(date, previousSlot)) {
-            previousSlotsFilled = false;
-            break;
-          }
-        }
-
-        if (!previousSlotsFilled) {
-          failures.add(
-            '$dateLabel — $slot: previous shuttle slot must be assigned first.',
-          );
-          continue;
-        }
-
-        if (isShuttleSlotFilled(date, slot)) {
-          failures.add('$dateLabel — $slot: shuttle slot is already assigned.');
+        final error = validateShuttleSubmission(date, slot, ids, submitted);
+        if (error != null) {
+          failures.add('$dateLabel — $slot: $error');
           continue;
         }
 
         try {
           await service.assignRoutes(
             date: date,
-            routeIds: entry.value.toList(),
+            routeIds: ids.toList(),
             assignmentType: 'SHUTTLE',
             shuttleGroup: slot,
           );
 
-          created += entry.value.length;
+          submitted.add(slot);
+          created += ids.length;
         } catch (e) {
           failures.add('$dateLabel — $slot: $e');
         }
@@ -638,7 +871,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       } else {
         _showToast(
           'Added $created bus${created == 1 ? '' : 'es'}; '
-          '${failures.length} batch(es) failed.',
+          '${failures.length} batch(es) failed. ${failures.first}',
         );
       }
     } finally {
@@ -650,17 +883,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   Future<void> assignCurrentSelectionToSelectedDate() async {
     if (selectedCount == 0 || saving) return;
 
-    pendingRegular.clear();
-    for (final set in pendingShuttle.values) {
-      set.clear();
-    }
-
-    pendingRegular.addAll(regular);
-
-    for (final entry in shuttle.entries) {
-      pendingShuttle[entry.key]!.addAll(entry.value);
-    }
-
+    _moveSelectionToPending();
     clearSelections();
     await assignToSelectedDate();
   }
@@ -685,6 +908,8 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     ) {
       targetDates.add(d);
     }
+
+    final shuttleSlots = _sortedSlotsWith(shuttle);
 
     setState(() => saving = true);
     _showGlobalLoading();
@@ -716,28 +941,29 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
           }
         }
 
-        for (final entry in shuttle.entries) {
-          if (isShuttleSlotLocked(entry.key)) {
-            skipped += entry.value.length;
+        final submitted = <String>{};
+
+        for (final slot in shuttleSlots) {
+          final ids = shuttleSet(slot);
+
+          final error = validateShuttleSubmission(date, slot, ids, submitted);
+
+          if (error != null) {
+            skipped += ids.length;
             continue;
           }
-
-          final ids = entry.value.where((id) => !assignedOn(date, id)).toList();
-
-          skipped += entry.value.length - ids.length;
-
-          if (ids.isEmpty) continue;
 
           try {
             await service.assignRoutes(
               date: date,
-              routeIds: ids,
+              routeIds: ids.toList(),
               assignmentType: 'SHUTTLE',
-              shuttleGroup: entry.key,
+              shuttleGroup: slot,
             );
+            submitted.add(slot);
             created += ids.length;
           } catch (e) {
-            failures.add('$dateLabel — ${entry.key}: $e');
+            failures.add('$dateLabel — $slot: $e');
           }
         }
       }
@@ -747,7 +973,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
 
       if (failures.isEmpty) {
         final skipText = skipped > 0
-            ? ' Skipped $skipped already-assigned bus/date pair(s).'
+            ? ' Skipped $skipped already-assigned or invalid bus/date pair(s).'
             : '';
 
         _showToast(
@@ -757,7 +983,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       } else {
         _showToast(
           'Created $created assignment(s); '
-          '${failures.length} batch(es) failed.',
+          '${failures.length} batch(es) failed. ${failures.first}',
         );
       }
     } finally {
@@ -1227,19 +1453,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
 
                                       if (confirmed != true) return;
 
-                                      pendingRegular.clear();
-                                      for (final set in pendingShuttle.values) {
-                                        set.clear();
-                                      }
-
-                                      pendingRegular.addAll(regular);
-
-                                      for (final entry in shuttle.entries) {
-                                        pendingShuttle[entry.key]!.addAll(
-                                          entry.value,
-                                        );
-                                      }
-
+                                      _moveSelectionToPending();
                                       clearSelections();
 
                                       if (addSheetContext.mounted) {
@@ -1583,6 +1797,8 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     final failed = <int>[];
 
     try {
+      // Delete one at a time. The backend compacts shuttle slots after each
+      // delete, so we always reload from the backend afterwards.
       for (final id in ids) {
         try {
           await service.deleteAssignment(id);
@@ -1708,7 +1924,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    r.acType,
+                    acLabel(r.acType),
                     style: const TextStyle(
                       color: Color(0xFF758198),
                       fontSize: 10.5,
@@ -1729,6 +1945,10 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     );
   }
 
+  String _routeSearchText(RouteModel r) =>
+      '${r.routeNumber} ${r.routeName} ${r.acType} ${acLabel(r.acType)}'
+          .toLowerCase();
+
   Widget regularRoutesSection({required VoidCallback onChanged}) {
     final query = routeSearch.text.trim().toLowerCase();
 
@@ -1737,9 +1957,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
           (r) =>
               !shuttle.values.any((s) => s.contains(r.id)) &&
               !assignedOn(selectedDate, r.id) &&
-              ('${r.routeNumber} ${r.routeName} ${r.acType}')
-                  .toLowerCase()
-                  .contains(query),
+              _routeSearchText(r).contains(query),
         )
         .toList();
 
@@ -1773,8 +1991,70 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     );
   }
 
+  Widget _addMoreSection(VoidCallback onChanged) {
+    final dest = selectedDestination;
+    final next = nextSlotFor(dest);
+    final canAdd = canAddMoreSlot(dest);
+    final unsaved = emptySlotsOf(dest);
+
+        String? hint;
+    if (next == null) {
+      hint = 'Maximum number of slots reached.';
+    } else if (!canAdd && unsaved.isNotEmpty) {
+      hint = unsaved.length == 1
+          ? 'Select a bus for ${unsaved.first} to add $next.'
+          : 'Select buses for ${unsaved.first}–${unsaved.last} to add $next.';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: canAdd
+                  ? () {
+                      addMoreSlot(dest);
+                      onChanged();
+                    }
+                  : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: navy,
+                side: BorderSide(
+                  color: canAdd ? navy : const Color(0xFFD5DCE8),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: Text(
+                next == null ? 'Add more' : 'Add more ($next)',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                ),
+              ),
+            ),
+          ),
+          if (hint != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 4),
+              child: Text(
+                hint,
+                style: const TextStyle(fontSize: 10.5, color: Color(0xFF758198)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget shuttleSection({required VoidCallback onChanged}) {
-    final slots = destinations[selectedDestination] ?? [];
+    final slots = slotsOf(selectedDestination);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1785,7 +2065,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
             children: destinations.keys.map((dest) {
               final isChosen = selectedDestination == dest;
 
-              final count = (destinations[dest] ?? []).fold<int>(
+              final count = slotsOf(dest).fold<int>(
                 0,
                 (sum, s) =>
                     sum +
@@ -1824,7 +2104,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
         ),
         const SizedBox(height: 10),
         ...slots.map((slot) {
-          final chosen = shuttle[slot]!;
+          final chosen = shuttleSet(slot);
           final alreadyAssigned = isShuttleSlotAlreadyAssigned(slot);
           final locked = isShuttleSlotLocked(slot);
 
@@ -1832,32 +2112,36 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
               .where((r) => chosen.contains(r.id))
               .toList();
 
-          final query = slotSearch[slot]!.text.trim().toLowerCase();
+          final searchController = searchControllerFor(slot);
+          final query = searchController.text.trim().toLowerCase();
 
           final candidates = locked
               ? <RouteModel>[]
               : routes
                     .where(
                       (r) =>
+                          routeMatchesSlot(r, slot) &&
                           !regular.contains(r.id) &&
                           !assignedOn(selectedDate, r.id) &&
                           !shuttle.entries.any(
                             (e) => e.key != slot && e.value.contains(r.id),
                           ) &&
-                          ('${r.routeNumber} ${r.routeName} ${r.acType}')
-                              .toLowerCase()
-                              .contains(query),
+                          _routeSearchText(r).contains(query),
                     )
                     .toList();
 
+          final removable = canRemoveExtraSlot(selectedDestination, slot);
+
           return _ShuttleSlotTile(
+            key: ValueKey('slot-$slot'),
             slot: slot,
             locked: locked,
             alreadyAssigned: alreadyAssigned,
+            acRule: slotRuleLabel(slot),
             chosen: chosen,
             chosenRoute: chosenRoute,
             candidates: candidates,
-            slotSearchController: slotSearch[slot]!,
+            slotSearchController: searchController,
             onClear: () {
               chosen.clear();
               onChanged();
@@ -1866,8 +2150,15 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
               toggleSlot(slot, id);
               onChanged();
             },
+            onRemoveSlot: removable
+                ? () {
+                    removeExtraSlot(selectedDestination, slot);
+                    onChanged();
+                  }
+                : null,
           );
         }),
+        _addMoreSection(onChanged),
       ],
     );
   }
@@ -1931,7 +2222,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
           ),
         ),
         subtitle: Text(
-          '${a['acType'] ?? ''} • ${a['assignmentType'] ?? ''}'
+          '${acLabel('${a['acType'] ?? ''}')} • ${a['assignmentType'] ?? ''}'
           '${a['shuttleGroup'] == null ? '' : ' • ${a['shuttleGroup']}'}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -1979,7 +2270,9 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  slot == null ? route.acType : '${route.acType} • $slot',
+                  slot == null
+                      ? acLabel(route.acType)
+                      : '${acLabel(route.acType)} • $slot',
                   style: const TextStyle(
                     fontSize: 10.5,
                     color: Color(0xFF758198),
@@ -2309,26 +2602,31 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
 
 class _ShuttleSlotTile extends StatefulWidget {
   const _ShuttleSlotTile({
+    super.key,
     required this.slot,
     required this.locked,
     required this.alreadyAssigned,
+    required this.acRule,
     required this.chosen,
     required this.chosenRoute,
     required this.candidates,
     required this.slotSearchController,
     required this.onClear,
     required this.onToggle,
+    this.onRemoveSlot,
   });
 
   final String slot;
   final bool locked;
   final bool alreadyAssigned;
+  final String acRule;
   final Set<int> chosen;
   final List<RouteModel> chosenRoute;
   final List<RouteModel> candidates;
   final TextEditingController slotSearchController;
   final VoidCallback onClear;
   final void Function(int) onToggle;
+  final VoidCallback? onRemoveSlot;
 
   @override
   State<_ShuttleSlotTile> createState() => _ShuttleSlotTileState();
@@ -2417,12 +2715,22 @@ class _ShuttleSlotTileState extends State<_ShuttleSlotTile> {
                   ? 'This shuttle slot is already occupied'
                   : locked
                   ? 'Locked until previous slot is filled'
-                  : 'One bus per slot',
+                  : 'One bus per slot • ${widget.acRule}',
               style: const TextStyle(fontSize: 10),
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (widget.onRemoveSlot != null && !hasBus)
+                  IconButton(
+                    tooltip: 'Remove ${widget.slot}',
+                    onPressed: widget.onRemoveSlot,
+                    icon: const Icon(
+                      Icons.remove_circle_outline_rounded,
+                      color: AfternoonAssignmentScreenState.danger,
+                      size: 19,
+                    ),
+                  ),
                 if (hasBus)
                   IconButton(
                     tooltip: 'Clear ${widget.slot}',
@@ -2493,12 +2801,12 @@ class _ShuttleSlotTileState extends State<_ShuttleSlotTile> {
               ),
               const SizedBox(height: 8),
               if (widget.candidates.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Center(
                     child: Text(
-                      'No available buses found.',
-                      style: TextStyle(
+                      'No available ${widget.acRule.toLowerCase().replaceAll(' only', '')} found.',
+                      style: const TextStyle(
                         fontSize: 11.5,
                         color: Color(0xFF758198),
                       ),
@@ -2596,7 +2904,7 @@ Widget _shuttleRouteTile(
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  r.acType,
+                  AfternoonAssignmentScreenState.acLabel(r.acType),
                   style: const TextStyle(
                     color: Color(0xFF758198),
                     fontSize: 10.5,

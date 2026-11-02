@@ -3,7 +3,6 @@ package com.shubus.backend.service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,8 +25,8 @@ import com.shubus.backend.util.ShuttleSlotRules;
 @Service
 public class StudentAfternoonRouteService {
 
-        private static final int BOY_SEAT_CAPACITY = 31;
-        private static final int GIRL_SEAT_CAPACITY = 19;
+        private static final int BOY_SEAT_CAPACITY = SeatLayout.getBoysSeatCount();
+        private static final int GIRL_SEAT_CAPACITY = SeatLayout.getGirlsSeatCount();
 
         private final StudentRepository studentRepository;
         private final StudentTransportProfileRepository profileRepository;
@@ -96,9 +95,13 @@ public class StudentAfternoonRouteService {
 
                 String studentGenderValue = isBoy ? "BOY" : "GIRL";
 
+                /*
+                 * IMPORTANT: shuttle slot booking counts are computed from ALL
+                 * rows (before the AC filter below), so sequential opening
+                 * (A2 opens when A1 is full) is not affected by filtering.
+                 */
                 List<Object[]> rows = scheduleRepository.getStudentSchedule(date);
-                var bookedSeatsByShuttleSlot =
-                                ShuttleAvailabilityService.bookedSeatsByShuttleSlot(rows);
+                var bookedSeatsByShuttleSlot = ShuttleAvailabilityService.bookedSeatsByShuttleSlot(rows);
 
                 List<StudentAfternoonRouteResponse> result = new ArrayList<>();
 
@@ -122,10 +125,16 @@ public class StudentAfternoonRouteService {
                         boolean eligible;
 
                         if ("SHUTTLE".equalsIgnoreCase(assignmentType)) {
-                                eligible = true;
+                                // AC students see only AC shuttles (A/V/S);
+                                // Non-AC students see only Non-AC shuttles (T).
+                                eligible = ShuttleSlotRules.isShuttleAllowedForAcType(
+                                                shuttleGroup,
+                                                acType,
+                                                profile.getAcType());
                         } else {
                                 // Transport profile and regular afternoon route must match.
-                                if (!sameValue(profile.getAcType(), acType)) {
+                                if (!ShuttleSlotRules.sameAcType(
+                                                profile.getAcType(), acType)) {
                                         continue;
                                 }
 
@@ -137,7 +146,7 @@ public class StudentAfternoonRouteService {
                         }
 
                         /*
-                         * SeatLayout contains 55 valid seats, including faculty-only seats.
+                         * SeatLayout contains the valid seats, including faculty-only seats.
                          *
                          * Keep this count aligned with SeatLayout.
                          */
@@ -198,13 +207,5 @@ public class StudentAfternoonRouteService {
                 }
 
                 return false;
-        }
-
-        private boolean sameValue(String first, String second) {
-                return first != null
-                                && second != null
-                                && Objects.equals(
-                                                first.trim().toUpperCase(),
-                                                second.trim().toUpperCase());
         }
 }

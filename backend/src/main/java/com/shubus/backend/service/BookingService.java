@@ -3,8 +3,6 @@ package com.shubus.backend.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +23,7 @@ import com.shubus.backend.repository.StudentRepository;
 import com.shubus.backend.repository.StudentTransportProfileRepository;
 import com.shubus.backend.util.BookingTimeRules;
 import com.shubus.backend.util.SeatLayout;
+import com.shubus.backend.util.ShuttleSlotRules;
 
 @Service
 public class BookingService {
@@ -90,6 +89,9 @@ public class BookingService {
 
                 Route afternoonRoute = assignment.getRoute();
 
+                boolean isShuttle = "SHUTTLE".equalsIgnoreCase(
+                                assignment.getAssignmentType());
+
                 // The requested date must match the actual assignment date.
                 if (!assignment.getAssignmentDate()
                                 .equals(request.bookingDate())) {
@@ -105,12 +107,23 @@ public class BookingService {
                                         "Booking is currently closed");
                 }
 
-                if ("SHUTTLE".equalsIgnoreCase(assignment.getAssignmentType())
-                                        && !shuttleAvailabilityService.isOpen(
-                                                        assignment.getId(),
-                                                        request.bookingDate())) {
+                // AC students may only book AC shuttles; Non-AC students only Non-AC.
+                if (isShuttle
+                                && !ShuttleSlotRules.isShuttleAllowedForAcType(
+                                                assignment.getShuttleGroup(),
+                                                afternoonRoute.getAcType(),
+                                                profile.getAcType())) {
+
+                        throw apiError(HttpStatus.BAD_REQUEST,
+                                        "This shuttle is not available for your AC/Non-AC type");
+                }
+
+                if (isShuttle
+                                && !shuttleAvailabilityService.isOpen(
+                                                assignment.getId(),
+                                                request.bookingDate())) {
                         throw apiError(HttpStatus.CONFLICT,
-                                                "Shuttle is not open for booking");
+                                        "Shuttle is not open for booking");
                 }
 
                 // Validate the selected seat.
@@ -139,8 +152,8 @@ public class BookingService {
                                         "Boys can only book boys seats");
                 }
 
-                if (!"SHUTTLE".equalsIgnoreCase(assignment.getAssignmentType())
-                                && !sameValue(
+                if (!isShuttle
+                                && !ShuttleSlotRules.sameAcType(
                                                 profile.getAcType(),
                                                 afternoonRoute.getAcType())) {
 
@@ -149,8 +162,7 @@ public class BookingService {
                 }
 
                 // Regular assignments must be eligible for the morning route.
-                if (!"SHUTTLE".equalsIgnoreCase(
-                                assignment.getAssignmentType())) {
+                if (!isShuttle) {
 
                         String[] allowedRoutes = morningRoute.getAllowedRoutes();
 
@@ -219,15 +231,8 @@ public class BookingService {
                                         "Booking does not belong to this student");
                 }
 
-                ZoneId indiaZone = ZoneId.of("Asia/Kolkata");
-
-                ZonedDateTime now = ZonedDateTime.now(indiaZone);
-
-                ZonedDateTime cancellationDeadline = booking.getBookingDate()
-                                .atTime(12, 30)
-                                .atZone(indiaZone);
-
-                if (!now.isBefore(cancellationDeadline)) {
+                if (!BookingTimeRules.isCancellationOpen(
+                                booking.getBookingDate())) {
                         throw apiError(HttpStatus.CONFLICT,
                                         "Cancellation is closed");
                 }
@@ -294,14 +299,6 @@ public class BookingService {
                 }
 
                 return false;
-        }
-
-        private boolean sameValue(String first, String second) {
-                return first != null
-                                && second != null
-                                && Objects.equals(
-                                                first.trim().toUpperCase(),
-                                                second.trim().toUpperCase());
         }
 
         private ResponseStatusException apiError(

@@ -119,24 +119,46 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         assignment.shuttleGroup.trim().isNotEmpty;
   }
 
-  List<AfternoonAssignment> _filterRegularForStudent(
+  /// Normalizes AC values: AC, NON_AC, NON-AC, "non ac", nonac -> 'AC' / 'NON_AC'.
+  String _normalizeAc(String raw) {
+    final cleaned = raw.toUpperCase().replaceAll(RegExp(r'[^A-Z]'), '');
+    if (cleaned.isEmpty) return '';
+    if (cleaned.startsWith('NON')) return 'NON_AC';
+    if (cleaned == 'AC') return 'AC';
+    return '';
+  }
+
+  /// Safety net on top of the backend filter:
+  /// AC students see AC buses/shuttles (A, V, S slots),
+  /// Non-AC students see Non-AC buses/shuttles (T slots).
+  List<AfternoonAssignment> _filterForStudent(
     List<AfternoonAssignment> assignments,
     TransportProfile? profile,
   ) {
-    final studentAcType = profile?.acType.trim().toUpperCase() ?? '';
+    final studentAc = _normalizeAc(profile?.acType ?? '');
 
     return assignments.where((assignment) {
+      if (studentAc.isEmpty) return true;
+
+      String required;
+
       if (_isShuttle(assignment)) {
-        return true;
+        final group = assignment.shuttleGroup.trim().toUpperCase();
+
+        if (RegExp(r'^[AVS]\d+$').hasMatch(group)) {
+          required = 'AC';
+        } else if (RegExp(r'^T\d+$').hasMatch(group)) {
+          required = 'NON_AC';
+        } else {
+          required = _normalizeAc(assignment.acType);
+        }
+      } else {
+        required = _normalizeAc(assignment.acType);
       }
 
-      final busAcType = assignment.acType.trim().toUpperCase();
+      if (required.isEmpty) return true;
 
-      if (studentAcType.isEmpty || busAcType.isEmpty) {
-        return true;
-      }
-
-      return busAcType == studentAcType;
+      return required == studentAc;
     }).toList();
   }
 
@@ -238,10 +260,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   );
                 }
 
+                final closedMessage = BookingWindow.closedMessage(
+                  _bookingDate,
+                );
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _NoBookingCard(travelDate: _bookingDate),
+                    _NoBookingCard(
+                      travelDate: _bookingDate,
+                      closedMessage: closedMessage,
+                    ),
                     const SizedBox(height: 24),
                     FutureBuilder<TransportProfile?>(
                       future: _profileFuture,
@@ -272,10 +301,35 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                             final allAssignments =
                                 assignmentsSnapshot.data ?? [];
 
-                            final assignments = _filterRegularForStudent(
+                            // Nothing assigned for this date at all.
+                            if (allAssignments.isEmpty) {
+                              return _MessageCard(
+                                icon: Icons.event_busy_outlined,
+                                title: 'No buses assigned yet',
+                                message:
+                                    'No afternoon buses or shuttles have been assigned for '
+                                    '${_formatDate(_bookingDate)} yet. '
+                                    'Please check back later.',
+                                actionLabel: 'Refresh',
+                                onAction: _refreshDashboard,
+                              );
+                            }
+
+                            final assignments = _filterForStudent(
                               allAssignments,
                               profile,
                             );
+
+                            // Buses exist, but none match this student.
+                            if (assignments.isEmpty) {
+                              return const _MessageCard(
+                                icon: Icons.event_busy_outlined,
+                                title: 'No eligible buses right now',
+                                message:
+                                    'There are no afternoon buses or shuttles matching '
+                                    'your AC/Non-AC type and route for this date.',
+                              );
+                            }
 
                             final regular = assignments
                                 .where((a) => !_isShuttle(a))
@@ -285,24 +339,23 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                 .where(_isShuttle)
                                 .toList();
 
-                            if (assignments.isEmpty) {
-                              return const _MessageCard(
-                                icon: Icons.event_busy_outlined,
-                                title: 'No eligible buses right now',
-                                message:
-                                    'There are no afternoon buses or shuttles available for your booking date.',
-                              );
-                            }
-
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                if (closedMessage != null) ...[
+                                  _ClosedBanner(
+                                    message: closedMessage,
+                                    travelDate: _bookingDate,
+                                  ),
+                                  const SizedBox(height: 18),
+                                ],
                                 if (regular.isNotEmpty) ...[
                                   _AssignmentSection(
                                     title: 'REGULAR ROUTES',
                                     icon: Icons.directions_bus_rounded,
                                     assignments: regular,
                                     profile: profile,
+                                    travelDate: _bookingDate,
                                     onSelect: _selectAssignment,
                                   ),
                                   const SizedBox(height: 22),
@@ -311,6 +364,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                   _ShuttleDestinationSections(
                                     assignments: shuttles,
                                     profile: profile,
+                                    travelDate: _bookingDate,
                                     onSelect: _selectAssignment,
                                   ),
                               ],
@@ -481,9 +535,10 @@ class _MorningRouteCard extends StatelessWidget {
 }
 
 class _NoBookingCard extends StatelessWidget {
-  const _NoBookingCard({required this.travelDate});
+  const _NoBookingCard({required this.travelDate, this.closedMessage});
 
   final DateTime travelDate;
+  final String? closedMessage;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -519,11 +574,64 @@ class _NoBookingCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Book for ${_formatDate(travelDate)}',
+                closedMessage == null
+                    ? 'Book for ${_formatDate(travelDate)}'
+                    : '$closedMessage • ${_formatDate(travelDate)}',
                 style: const TextStyle(
                   color: Color(0xFF758198),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ClosedBanner extends StatelessWidget {
+  const _ClosedBanner({required this.message, required this.travelDate});
+
+  final String message;
+  final DateTime travelDate;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7E0),
+      borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: const Color(0xFFF3DFA2)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.schedule_rounded, color: Color(0xFF805B12), size: 22),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message,
+                style: const TextStyle(
+                  color: Color(0xFF805B12),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Buses are assigned for ${_formatDate(travelDate)}, '
+                'but they cannot be booked right now. '
+                'Booking is open from 7:30 PM the day before until 1:45 PM on the travel day.',
+                style: const TextStyle(
+                  color: Color(0xFF805B12),
+                  fontSize: 11.5,
+                  height: 1.4,
                 ),
               ),
             ],
@@ -688,11 +796,13 @@ class _ShuttleDestinationSections extends StatelessWidget {
   const _ShuttleDestinationSections({
     required this.assignments,
     required this.profile,
+    required this.travelDate,
     required this.onSelect,
   });
 
   final List<AfternoonAssignment> assignments;
   final TransportProfile? profile;
+  final DateTime travelDate;
   final Future<void> Function(AfternoonAssignment) onSelect;
 
   String _destination(AfternoonAssignment assignment) {
@@ -713,18 +823,36 @@ class _ShuttleDestinationSections extends StatelessWidget {
       return 'SHOLINGANALLUR';
     }
 
+    if (group == 'TAMBARAM' || group.startsWith('T')) {
+      return 'TAMBARAM';
+    }
+
     return 'OTHER SHUTTLES';
+  }
+
+  /// Sorts A1, A2, ... A10 numerically (not as text).
+  int _slotNumber(AfternoonAssignment assignment) {
+    final match = RegExp(
+      r'(\d+)$',
+    ).firstMatch(assignment.shuttleGroup.trim());
+    return match == null ? 0 : int.tryParse(match.group(1)!) ?? 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    const destinations = ['ALANDUR METRO', 'VELACHERY', 'SHOLINGANALLUR'];
+    const destinations = [
+      'ALANDUR METRO',
+      'VELACHERY',
+      'SHOLINGANALLUR',
+      'TAMBARAM',
+    ];
 
     final groups = <String, List<AfternoonAssignment>>{
       for (final destination in destinations)
-        destination: assignments
+        destination: (assignments
             .where((a) => _destination(a) == destination)
-            .toList(),
+            .toList()
+          ..sort((a, b) => _slotNumber(a).compareTo(_slotNumber(b)))),
     };
 
     final other = assignments
@@ -770,6 +898,7 @@ class _ShuttleDestinationSections extends StatelessWidget {
                 child: _AssignmentCard(
                   assignment: assignment,
                   profile: profile,
+                  travelDate: travelDate,
                   onTap: () => onSelect(assignment),
                   showShuttleDestinationAsTitle: false,
                 ),
@@ -788,6 +917,7 @@ class _AssignmentSection extends StatelessWidget {
     required this.icon,
     required this.assignments,
     required this.profile,
+    required this.travelDate,
     required this.onSelect,
   });
 
@@ -795,6 +925,7 @@ class _AssignmentSection extends StatelessWidget {
   final IconData icon;
   final List<AfternoonAssignment> assignments;
   final TransportProfile? profile;
+  final DateTime travelDate;
   final Future<void> Function(AfternoonAssignment) onSelect;
 
   @override
@@ -838,6 +969,7 @@ class _AssignmentSection extends StatelessWidget {
           child: _AssignmentCard(
             assignment: assignment,
             profile: profile,
+            travelDate: travelDate,
             onTap: () => onSelect(assignment),
           ),
         ),
@@ -850,12 +982,14 @@ class _AssignmentCard extends StatelessWidget {
   const _AssignmentCard({
     required this.assignment,
     required this.profile,
+    required this.travelDate,
     required this.onTap,
     this.showShuttleDestinationAsTitle = true,
   });
 
   final AfternoonAssignment assignment;
   final TransportProfile? profile;
+  final DateTime travelDate;
   final VoidCallback onTap;
   final bool showShuttleDestinationAsTitle;
 
@@ -867,10 +1001,23 @@ class _AssignmentCard extends StatelessWidget {
 
   int get genderCapacity => assignment.studentGenderCapacity;
 
+  /// Why this card is locked, or null when it is open.
+  String? get lockedReason {
+    if (assignment.isOpen) return null;
+
+    final windowMessage = BookingWindow.closedMessage(travelDate);
+    if (windowMessage != null) return windowMessage;
+
+    if (isShuttle) return 'Opens after the previous shuttle is full';
+
+    return 'Booking closed';
+  }
+
   @override
   Widget build(BuildContext context) {
     final available = availableForStudent;
     final canSelect = assignment.isOpen && available > 0;
+    final reason = lockedReason;
 
     return Material(
       color: canSelect ? Colors.white : const Color(0xFFF4F6F9),
@@ -948,26 +1095,37 @@ class _AssignmentCard extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 7),
-                    Text(
-                      '$available seats available for you of $genderCapacity',
-                      style: TextStyle(
-                        color: available > 0
-                            ? AppColors.success
-                            : AppColors.danger,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (available == 0) ...[
-                      const SizedBox(height: 4),
+                    if (reason != null)
                       Text(
-                        'No seats available',
+                        reason,
                         style: const TextStyle(
-                          color: AppColors.danger,
+                          color: Color(0xFF805B12),
                           fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    else ...[
+                      Text(
+                        '$available seats available for you of $genderCapacity',
+                        style: TextStyle(
+                          color: available > 0
+                              ? AppColors.success
+                              : AppColors.danger,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
+                      if (available == 0) ...[
+                        const SizedBox(height: 4),
+                        const Text(
+                          'No seats available',
+                          style: TextStyle(
+                            color: AppColors.danger,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ],
                   ],
                 ),

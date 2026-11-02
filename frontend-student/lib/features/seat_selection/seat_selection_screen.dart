@@ -9,6 +9,7 @@ import '../bookings/models.dart';
 import '../routes/models.dart';
 import '../student_repository.dart';
 import 'seat_layout.dart';
+import 'booked_seat_map.dart';
 
 class SeatSelectionScreen extends StatefulWidget {
   const SeatSelectionScreen({
@@ -176,6 +177,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   bool _isSeatAvailable(SeatPosition position) {
     return _seatStatus(position) == 'AVAILABLE';
   }
+
+
+    Set<String> get _bookedSeatLabels => {
+    for (final seat in _seats)
+      if ((seat['status'] ?? '').toString().toUpperCase() == 'BOOKED')
+        (seat['seatNumber'] ?? '').toString(),
+  };
 
   int get _availableSeatCount {
     return _seats.where((seat) {
@@ -583,13 +591,18 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
               Expanded(
                 child: _BookingDetail(label: 'SEAT', value: booking.seatNumber),
               ),
-              Expanded(
+                            Expanded(
                 child: _BookingDetail(
                   label: 'ROUTE',
                   value: booking.routeNumber.toString(),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 18),
+          BookedSeatMap(
+            seatLabel: booking.seatNumber,
+            bookedSeats: _bookedSeatLabels,
           ),
         ],
       ),

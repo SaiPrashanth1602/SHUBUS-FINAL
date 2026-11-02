@@ -6,6 +6,7 @@ import '../../core/utils/booking_window.dart';
 import '../auth/models.dart';
 import '../student_repository.dart';
 import 'models.dart';
+import '../seat_selection/booked_seat_map.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({
@@ -38,8 +39,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return BookingWindow.targetBookingDate();
   }
 
-  bool _isActiveBookingDate(DateTime date) {
-    return DateUtils.dateOnly(date) == _targetBookingDate();
+  /// Cancellation is allowed until 1:45 PM on the travel day
+  /// (same cutoff as booking; the backend is the final authority).
+  bool _canCancelFor(DateTime date) {
+    return BookingWindow.canCancel(DateUtils.dateOnly(date));
   }
 
   Future<BookingInfo?> _loadBooking() {
@@ -94,8 +97,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Future<void> _cancelBooking(BookingInfo booking) async {
-    if (!_isActiveBookingDate(booking.bookingDate ?? _date)) {
-      _showMessage('This booking can no longer be cancelled.');
+    if (!_canCancelFor(booking.bookingDate ?? _date)) {
+      _showMessage('Cancellation closed at 1:45 PM on the travel day.');
       return;
     }
 
@@ -435,7 +438,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Widget _buildBookingCard(BookingInfo booking) {
-    final canCancel = _isActiveBookingDate(booking.bookingDate ?? _date);
+    final canCancel = _canCancelFor(booking.bookingDate ?? _date);
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -478,7 +481,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        canCancel ? 'Booking confirmed' : 'Booking completed',
+                        canCancel ? 'Booking confirmed' : 'Booking locked',
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 16,
@@ -489,7 +492,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       Text(
                         canCancel
                             ? 'Your seat has been reserved.'
-                            : 'This travel date has passed.',
+                            : 'Your seat is confirmed. Cancellation closed at 1:45 PM.',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.black54,
@@ -596,7 +599,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     label: 'Booked at',
                     value: _formatDateTime(booking.bookedAt!),
                   ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
+                BookedSeatMapLoader(
+                  repository: widget.repository,
+                  regNo: widget.session.regNo,
+                  assignmentId: booking.assignmentId,
+                  date: booking.bookingDate ?? _date,
+                  seatLabel: booking.seatNumber,
+                ),
+                const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -624,6 +635,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     ),
                   ),
                 ),
+                if (canCancel) ...[
+                  const SizedBox(height: 8),
+                  const Center(
+                    child: Text(
+                      'You can cancel until 1:45 PM on the travel day.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black54, fontSize: 11),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
