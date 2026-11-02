@@ -227,6 +227,20 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.5.4"
+  shubus_admin_frontend:
+    dependency: "direct main"
+    description:
+      path: "../frontend-admin"
+      relative: true
+    source: path
+    version: "1.0.0"
+  shubus_student_frontend:
+    dependency: "direct main"
+    description:
+      path: "../frontend-student"
+      relative: true
+    source: path
+    version: "1.0.0"
   sky_engine:
     dependency: transitive
     description: flutter

@@ -1,336 +1,284 @@
-# SHUBUS — System Design and Documentation (SDC)
+# SHUBUS — System Development & Configuration Documentation
 
-> **Scope:** Shared SHUBUS system documentation based on the supplied Admin and Student repository snapshots and the supplied Neon PostgreSQL catalog export.
->
-> **Verification rule:** Database facts below come from the Neon catalog export. Application behavior comes from the supplied source code. Where those sources do not agree or do not establish a fact, this document marks the point as unverified instead of guessing.
+> Technical handover for the SHUBUS workspace. This document follows the supplied SDC reference's detailed organization, while describing the actual repository and respecting the supplied database reference's verification limits.
+
+## Contents
+
+1. [System overview](#1-system-overview)
+2. [Repository architecture](#2-repository-architecture)
+3. [Technology stack](#3-technology-stack)
+4. [Application workflows](#4-application-workflows)
+5. [Backend structure](#5-backend-structure)
+6. [API inventory](#6-api-inventory)
+7. [Database reference and verification status](#7-database-reference-and-verification-status)
+8. [Business rules](#8-business-rules)
+9. [Configuration and local development](#9-configuration-and-local-development)
+10. [Security and operational considerations](#10-security-and-operational-considerations)
+11. [Troubleshooting and maintenance](#11-troubleshooting-and-maintenance)
+12. [Known gaps and handover checklist](#12-known-gaps-and-handover-checklist)
 
 ## 1. System overview
 
-SHUBUS is a campus shuttle booking system with two Flutter clients:
+SHUBUS is a campus shuttle reservation and administration system. The current repository contains a combined Flutter launcher with Student and Admin feature modules, plus a Java Spring Boot REST API that uses Spring Data JPA against PostgreSQL hosted on Neon.
 
-- **SHUBUS Admin** — route management, afternoon assignment management, and schedule/dashboard views.
-- **SHUBUS Student** — student transport-profile viewing, route discovery, seat availability, booking, booking review, and cancellation.
+The Student module uses a registration number supplied by its host flow to load a profile and interact with transport booking features. The Admin module provides administrative sign-in, dashboard, route and afternoon assignment workflows. Both clients communicate with the backend over HTTP/JSON; persistence is on the shared relational database.
 
-Both clients communicate with a shared **Java Spring Boot REST API**. The backend persists application data in **PostgreSQL hosted on Neon**. The Student application does not connect directly to PostgreSQL or to the Admin application.
-
-```text
-┌────────────────────────┐          ┌────────────────────────┐
-│ SHUBUS Admin (Flutter) │ ───────► │                        │
-└────────────────────────┘          │                        │
-                                    │ Spring Boot REST API   │ ───────► Neon PostgreSQL
-┌────────────────────────┐          │                        │
-│ SHUBUS Student         │ ───────► │                        │
-│ (Flutter)              │          └────────────────────────┘
-└────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph Flutter
+    L[Launcher]
+    S[Student module]
+    A[Admin module]
+    L --> S
+    L --> A
+  end
+  S -->|REST| API[Spring Boot API]
+  A -->|REST| API
+  API --> JPA[Spring Data JPA]
+  JPA --> DB[(PostgreSQL / Neon)]
 ```
 
-The supplied Admin repository contains the shared backend. The Student repository contains the Student Flutter frontend and documents the API as being hosted/maintained in the Admin repository.
+## 2. Repository architecture
 
-## 2. Technology stack
+```text
+frontend/                  Combined Flutter launcher
+  lib/main.dart            App entry point and app selection
+  lib/app_selection/       Student/Admin entry selection
+frontend-student/          Student Flutter package
+  lib/features/            Auth, dashboard, routes, bookings, profile, seats
+  lib/core/                API client/config, errors, date-window utilities
+frontend-admin/             Admin Flutter package
+  lib/screens/             Login, dashboard, routes, assignments
+  lib/services/            Route API and endpoint configuration
+backend/
+  src/main/java/com/shubus/backend/
+    config/                Security configuration
+    controller/            REST endpoints and exception mapping
+    dto/                   Request/response objects
+    model/                 JPA entities
+    repository/            Spring Data repositories
+    service/               Workflow and business logic
+    util/                  Date, booking, seat and shuttle rules
+  src/main/resources/       Configuration example
+```
 
-| Layer | Technology evidenced by the repositories |
+`frontend/pubspec.yaml` uses local path dependencies on the Student and Admin packages. The `frontend/` directory is the runnable combined launcher.
+
+## 3. Technology stack
+
+| Layer | Technology / evidence |
 |---|---|
-| Admin client | Flutter / Dart |
-| Student client | Flutter / Dart |
-| Backend | Java, Spring Boot, Spring Data JPA |
-| HTTP API | Spring MVC REST controllers |
-| Database | PostgreSQL on Neon |
-| Persistence | Hibernate/JPA and Spring Data repositories |
-| Password hashing utility | Spring Security Crypto `BCryptPasswordEncoder` |
-| Student HTTP client | Dart `http` package |
-| Admin HTTP client | Dart service using HTTP requests |
+| Student/Admin clients | Flutter and Dart (`^3.11.5`) |
+| Client networking | Dart `http` package |
+| Backend | Java 21, Spring Boot 4.1.1, Spring MVC, Spring Data JPA |
+| Persistence driver | PostgreSQL JDBC |
+| Database host | Neon, per supplied database reference |
+| ORM schema behavior | `spring.jpa.hibernate.ddl-auto=none` in configuration example |
 
-The backend `pom.xml` sets Java 21 and Spring Boot 4.1.1. The backend example configuration uses port `8081`, binds to `0.0.0.0`, and sets `spring.jpa.hibernate.ddl-auto=none`. The actual deployment/runtime values must be taken from the environment where the backend is running; do not publish database credentials.
+## 4. Application workflows
 
-## 3. Repository layout
+### Student
 
-### Admin repository
+1. Student module receives the registration number from its host/login flow.
+2. It loads basic/profile and transport data from `/api/students/{regNo}...` endpoints.
+3. It requests available afternoon routes for a date, then requests seats for an assignment.
+4. A booking request is submitted; the student can retrieve the booking by date or cancel it.
 
-```text
-SHUBUS-ADMIN/
-├── frontend/
-│   └── lib/
-│       ├── main.dart
-│       ├── models/
-│       ├── screens/
-│       ├── services/
-│       └── widgets/
-└── backend/
-    └── src/main/
-        ├── java/com/shubus/backend/
-        │   ├── config/
-        │   ├── controller/
-        │   ├── dto/
-        │   ├── model/
-        │   ├── repository/
-        │   ├── service/
-        │   └── util/
-        └── resources/
-```
+The backend has distinct services for student authentication, profile lookup, afternoon availability, seat layout/availability, and booking lifecycle. The host-app integration should be reviewed before changing the registration-number handoff.
 
-### Student repository
+### Admin
 
-```text
-SHUBUS-STUDENT/
-└── frontend/
-    ├── lib/
-    │   ├── app/
-    │   ├── core/
-    │   └── features/
-    └── test/
-```
+1. Admin credentials are submitted to `/api/admin/auth/login`.
+2. The dashboard can request the current operational date and a date-specific overview.
+3. Routes and afternoon assignments can be read and maintained through admin APIs.
+4. Assignment rules validate type/group and prevent duplicate route/date assignments; shuttle slots are compacted when a shuttle assignment is removed.
 
-## 4. Admin application
+The exact authentication/session behavior should be verified in `AdminAuthService` and `SecurityConfig`; a successful login response alone does not imply token-based authorization.
 
-The supplied Admin frontend includes:
+## 5. Backend structure
 
-- Employee-ID sign-in screen.
-- Dashboard with date-based schedule/capacity information.
-- Route listing and route create/edit/delete flows.
-- Route code, route number, route name, AC type, and Allowed Routes editing.
-- Afternoon assignment discovery and management.
-- User-triggered refresh actions and loading/error states.
+- **Controllers** map HTTP methods and paths to request/response DTOs and services.
+- **Services** implement booking, availability, seat allocation, authentication, route assignment, schedule and dashboard behavior.
+- **Repositories** provide JPA persistence access.
+- **Models** map Java objects to relational tables/columns.
+- **Utilities** centralize operational date, booking window, seat layout and shuttle slot rules.
+- **DTOs** define API payloads separately from persistence entities.
+- **GlobalExceptionHandler** translates exceptions into HTTP error responses.
 
-The Admin client configures the API base URL through `API_BASE_URL`; the source snapshot includes a local-network fallback in its Admin API config. For another machine or deployment, configure the URL for the target environment instead of relying on that fallback.
+Avoid placing business rules in Flutter-only code when those rules affect bookings or data integrity; backend services should remain authoritative.
 
-## 5. Student application
+## 6. API inventory
 
-The supplied Student frontend includes:
+Current controller mappings include:
 
-- Student sign-in using a registration number.
-- Student profile and morning-route details.
-- Route browsing/search and AC type filters.
-- Afternoon assignment discovery.
-- Seat availability and seat selection.
-- Booking confirmation, booking lookup, and cancellation.
-- Loading, empty, and error states.
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/health` | Health check |
+| POST | `/api/admin/auth/login` | Admin login |
+| GET | `/api/admin/dashboard/operational-date` | Current operational date |
+| GET | `/api/admin/dashboard?date=YYYY-MM-DD` | Date-specific admin summary |
+| GET/POST/PUT/DELETE | `/api/admin/routes` and `/api/admin/routes/{id}` | Route management |
+| GET/POST/PUT/DELETE | `/api/admin/afternoon-routes` | Assignment management; bulk creation is `/bulk` |
+| GET | `/api/admin/schedule` | Admin schedule |
+| POST | `/api/auth/login` | Student login |
+| GET | `/api/students/{regNo}` | Student details |
+| GET | `/api/students/{regNo}/profile` | Student bootstrap profile |
+| GET | `/api/students/{regNo}/transport-profile` | Transport profile |
+| GET | `/api/students/{regNo}/afternoon-routes?date=...` | Available routes |
+| GET | `/api/students/{regNo}/afternoon-routes/{assignmentId}/seats?date=...` | Seat availability |
+| POST | `/api/students/bookings` | Create booking |
+| GET | `/api/students/{regNo}/bookings?date=...` | Retrieve booking |
+| DELETE | `/api/students/{regNo}/bookings/{bookingId}` | Cancel booking |
+| GET | `/api/buses` | Bus listing |
+| GET | `/api/routes/{routeId}/buses` | Buses assigned to route |
+| GET | `/api/registrations/{regNo}` | Registration lookup |
 
-The Student API client reads `API_BASE_URL` through a Dart compile-time define and uses a 12-second request timeout. Run the app with a backend URL reachable from the selected emulator/device. `localhost` on a physical phone points to the phone itself, not the development computer.
+This list is derived from controller source and should be updated when mappings change. Refer to DTOs for exact payload fields.
 
-## 6. Backend responsibilities and API inventory
+## 7. Database reference and verification status
 
-The supplied backend separates HTTP controllers, DTOs, JPA models, repositories, services, and utility rules.
+The supplied `SHUBUS_COMPLETE_DATABASE_REFERENCE_FOR_CODEX.pdf` explicitly marks its content **PARTIALLY VERIFIED**. It is context, not a complete live schema export. The source code, current Neon catalog and schema migrations (if any) remain the authority for implementation work.
 
-| Controller base/path | Operations evidenced in source |
+### Confirmed by the supplied catalog notes
+
+- Database engine/host: PostgreSQL on Neon.
+- Backend persistence: Spring Boot/JPA.
+- Example schema mode: `ddl-auto=none`; tables are expected to exist before startup.
+- Six tables were reported in an earlier catalog export: `admin_users`, `afternoon_route_assignments`, `bookings`, `routes`, `student_transport_profiles`, `students`.
+- `id` primary keys and several FK/unique constraints were reported in historical catalog notes; verify them in the live catalog before relying on them for schema changes.
+
+### Column inventory reported by the export
+
+| Table | Reported columns and details |
 |---|---|
-| `GET /api/health` | Health endpoint |
-| `POST /api/admin/auth/login` | Admin login |
-| `GET /api/admin/dashboard` | Admin dashboard summary |
-| `/api/admin/routes` | List, fetch by ID, create, update, delete routes |
-| `/api/admin/afternoon-routes` | List/discover assignments; bulk create; create; update by ID; delete by ID |
-| `GET /api/admin/schedule` | Schedule lookup |
-| `POST /api/auth/login` | Student login endpoint |
-| `GET /api/buses` | Bus listing endpoint |
-| `GET /api/registrations/{regNo}` | Registration lookup endpoint |
-| `GET /api/routes/{routeId}/buses` | Route-associated bus lookup endpoint |
-| `GET /api/students/{regNo}` | Student lookup |
-| `GET /api/students/{regNo}/profile` | Student profile response |
-| `GET /api/students/{regNo}/transport-profile` | Transport profile lookup |
-| `GET /api/students/{regNo}/afternoon-routes` | Eligible afternoon route discovery |
-| `GET /api/students/{regNo}/afternoon-routes/{assignmentId}/seats` | Seat availability |
-| `POST /api/students/bookings` | Create booking |
-| `GET /api/students/{regNo}/bookings?date=YYYY-MM-DD` | Retrieve booking for a date |
-| `DELETE /api/students/{regNo}/bookings/{bookingId}` | Cancel booking |
+| `admin_users` | `id bigint`, `emp_id varchar`, `password_hash varchar`, `active boolean NOT NULL DEFAULT true` |
+| `afternoon_route_assignments` | `id bigint` with sequence default; `route_id bigint`; `assignment_date date`; `assignment_type varchar`; nullable `shuttle_group varchar` |
+| `bookings` | `id`, `student_id`, `booking_date date`, `seat_number varchar`, `booked_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP`, `afternoon_assignment_id`; ordinal positions 3, 6 and 8 were missing from the export |
+| `routes` | `id` sequence-backed; `route_number`, `route_name`, `ac_type varchar DEFAULT 'NON_AC'`, `allowed_routes varchar[] DEFAULT empty array`, `default_afternoon boolean DEFAULT false`, `route_code` |
+| `student_transport_profiles` | `id`, `student_id`, `morning_route_number`, `morning_route_name`, `ac_type`; ordinal position 5 was missing from the export |
+| `students` | `id` sequence-backed; `reg_no`, `name`, `password_hash`, `active boolean DEFAULT true`, `gender` |
 
-This is a controller-path inventory, not a guarantee that every endpoint is enabled or reachable in a particular deployment. Check controller annotations and request DTOs in the current source before integrating a new client.
+The PDF says “not present in supplied export” means unknown, not absent in the live database. It also states that defaults are not uniform; do not assume every identifier is generated automatically.
 
-## 7. Booking and eligibility rules in the supplied backend
+### Relationships and constraints reported historically
 
-The supplied `BookingService` implements the following checks during booking creation:
+- `afternoon_route_assignments.route_id` → `routes.id` (`RESTRICT`).
+- `bookings.student_id` → `students.id` (`RESTRICT`).
+- `student_transport_profiles.student_id` → `students.id` (`CASCADE`).
+- `bookings.afternoon_assignment_id` FK was not confirmed.
+- Reported unique rules: admin employee ID, student registration number, one transport profile per student, route number/code, assignment date + route, booking seat per assignment/date, and one student booking per date. Verify live definitions before schema work.
 
-1. Registration number, assignment ID, booking date, and seat number must be supplied.
-2. The student must exist and be active.
-3. The student must have a transport profile and the configured morning route must exist.
-4. The afternoon assignment must exist, and the requested booking date must equal the assignment date.
-5. The booking window must be open.
-6. A `SHUTTLE` assignment must pass the shuttle-availability check.
-7. The seat must be valid and must not be a faculty-only seat.
-8. Seat eligibility is checked against the student's `GIRL`/`BOY` category using the shared seat-layout rules.
-9. For a regular assignment, the afternoon route AC type must match the student's profile AC type.
-10. For a regular assignment, the afternoon route code must be included in the morning route's `allowed_routes`.
-11. The service checks for an existing booking by the same student on the same date and checks seat availability before saving.
+### Unverified database area
 
-The code snapshot establishes these application checks. The exact time boundaries are defined in `BookingTimeRules` and the shuttle-specific availability rules; consult those classes before documenting particular opening/closing hours. Database unique indexes additionally enforce uniqueness for `(student_id, booking_date)` and `(afternoon_assignment_id, booking_date, seat_number)` in the catalog export.
+The database PDF mentions `buses`, `bus_allowed_routes`, and `mock_bus_registrations` as source-code-referenced tables that were not confirmed by its catalog export. Bus models/controllers/repositories exist in the source. Their actual deployment status and columns require live Neon metadata confirmation. The PDF also records an unresolved `flag` field investigation; do not filter by `flag` or infer its meaning without confirming the live column, API query, and UI path.
 
-The Admin audit report in the supplied repository describes 55 physical seats, with 50 student-bookable seats and five faculty-only seats. Treat that capacity description as source-reported behavior and re-check `SeatLayout` before changing the layout.
+### Read-only verification SQL
 
-## 8. Neon PostgreSQL schema — catalog-confirmed tables
+Use these against the intended database to complete the reference. Do not paste credentials into docs or logs.
 
-The supplied catalog export confirms six base tables in schema `public`:
+```sql
+SELECT table_schema, table_name
+FROM information_schema.tables
+WHERE table_type = 'BASE TABLE'
+  AND table_schema NOT IN ('pg_catalog', 'information_schema')
+ORDER BY table_schema, table_name;
 
-| Table | Catalog-export estimated live rows* | Purpose inferred from column names and code |
-|---|---:|---|
-| `routes` | 113 | Route identity, route code/name, AC type, allowed route codes, afternoon default |
-| `afternoon_route_assignments` | 229 | Dated route assignment, assignment type, optional shuttle group |
-| `bookings` | 5 | Student seat bookings tied to a dated assignment |
-| `students` | 2 | Student registration, name, password hash, active flag, gender |
-| `student_transport_profiles` | 2 | Student morning route and AC type |
-| `admin_users` | 1 | Admin employee ID, password hash, active flag |
+SELECT table_schema, table_name, ordinal_position, column_name,
+       data_type, udt_name, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+ORDER BY table_schema, table_name, ordinal_position;
 
-\*Row counts are `pg_stat_user_tables.n_live_tup` estimates from the supplied export, not exact counts or a guarantee of current live contents.
+SELECT ns.nspname AS schema_name, tbl.relname AS table_name,
+       con.conname AS constraint_name, con.contype AS constraint_type,
+       pg_get_constraintdef(con.oid, true) AS definition
+FROM pg_constraint con
+JOIN pg_class tbl ON tbl.oid = con.conrelid
+JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+WHERE ns.nspname NOT IN ('pg_catalog', 'information_schema')
+ORDER BY ns.nspname, tbl.relname, con.contype, con.conname;
+```
 
-### 8.1 `routes`
+For a complete data dictionary, obtain a schema-only export (no rows or secrets) and update this section with live metadata. No production database was accessed as part of this documentation work.
 
-| Column | Type | Null? | Default/constraint from export |
-|---|---|---|---|
-| `id` | `bigint` | No | `routes_id_seq` default |
-| `route_number` | `varchar(20)` | No | Unique |
-| `route_name` | `varchar(150)` | No | — |
-| `ac_type` | `varchar(10)` | No | `NON_AC`; check constraint allows `AC` or `NON_AC` |
-| `allowed_routes` | `varchar[]` | No | Empty varchar array |
-| `default_afternoon` | `boolean` | No | `false` |
-| `route_code` | `varchar` | No | Unique |
+## 8. Business rules
 
-### 8.2 `afternoon_route_assignments`
+Rules are implemented across `BookingTimeRules`, `OperationalDateRules`, `ShuttleSlotRules`, `SeatLayout`, `BookingService`, `SeatService`, `StudentAfternoonRouteService`, and `AfternoonRouteAssignmentController`.
 
-| Column | Type | Null? | Default/constraint from export |
-|---|---|---|---|
-| `id` | `bigint` | No | `nextval('afternoon_route_assignments_id_seq')` |
-| `route_id` | `bigint` | No | FK to `routes.id`, delete restricted |
-| `assignment_date` | `date` | No | — |
-| `assignment_type` | `varchar(20)` | No | Check allows `REGULAR` or `SHUTTLE` |
-| `shuttle_group` | `varchar(30)` | Yes | — |
+- Booking windows and operational dates are date/time sensitive; consult utility source rather than duplicating assumptions in clients.
+- Seat availability is scoped to a particular assignment and date.
+- Student booking uniqueness and seat uniqueness are both enforced by service/database expectations.
+- Afternoon assignments distinguish `REGULAR` and `SHUTTLE`; shuttle assignments require a supported group/slot. Controller source defines Alandur slots A1–A5 and Velachery slots V1–V3.
+- Route assignments are date-specific and duplicate route/date assignments are rejected.
+- Exact cutoffs, seat geometry and timezone should be read from the corresponding utility source; they are intentionally not inferred here.
 
-Unique constraint: `(assignment_date, route_id)`.
-
-### 8.3 `bookings`
-
-The export provides these column definitions:
-
-| Column | Type | Null? | Default/constraint from export |
-|---|---|---|---|
-| `id` | `bigint` | No | Identity |
-| `student_id` | `bigint` | No | FK to `students.id`, delete restricted |
-| `booking_date` | `date` | No | — |
-| `seat_number` | `varchar(5)` | No | — |
-| `booked_at` | `timestamp without time zone` | No | `CURRENT_TIMESTAMP` |
-| `afternoon_assignment_id` | `bigint` | No | FK to `afternoon_route_assignments.id` |
-
-**Column metadata gap:** the provided column export jumps from ordinal position 2 to 4, 5, 7, and 9 for `bookings`. Ordinal positions 3, 6, and 8 were not included in the supplied output. This document does not invent their names or definitions. The JPA model snapshot does not by itself establish the missing physical columns.
-
-Unique indexes reported in the catalog export: `(afternoon_assignment_id, booking_date, seat_number)` and `(student_id, booking_date)`. Indexes `idx_bookings_date` and `idx_bookings_student` are also reported.
-
-### 8.4 `students`
-
-| Column | Type | Null? | Default/constraint from export |
-|---|---|---|---|
-| `id` | `bigint` | No | `students_id_seq` default |
-| `reg_no` | `varchar(20)` | No | Unique |
-| `name` | `varchar(100)` | No | — |
-| `password_hash` | `varchar(255)` | No | — |
-| `active` | `boolean` | No | `true` |
-| `gender` | `varchar(10)` | No | Check allows `GIRL` or `BOY` |
-
-### 8.5 `student_transport_profiles`
-
-| Column | Type | Null? | Default/constraint from export |
-|---|---|---|---|
-| `id` | `bigint` | No | Identity |
-| `student_id` | `bigint` | No | Unique; FK to `students.id`, `ON DELETE CASCADE` |
-| `morning_route_number` | `varchar(20)` | No | — |
-| `ac_type` | `varchar(20)` | No | Check allows `AC` or `NON_AC` |
-| `morning_route_name` | `varchar(150)` | No | — |
-
-**Column metadata gap:** ordinal position 5 was not included in the supplied export. Its name and definition remain unverified and are intentionally not guessed.
-
-### 8.6 `admin_users`
-
-| Column | Type | Null? | Default/constraint from export |
-|---|---|---|---|
-| `id` | `bigint` | No | Identity |
-| `emp_id` | `varchar(50)` | No | Unique |
-| `password_hash` | `varchar(255)` | No | — |
-| `active` | `boolean` | No | `true` |
-
-### 8.7 Catalog-confirmed relationships and constraints
-
-- `afternoon_route_assignments.route_id` references `routes.id` with `ON DELETE RESTRICT`.
-- `bookings.student_id` references `students.id` with `ON DELETE RESTRICT`.
-- `bookings.afternoon_assignment_id` references `afternoon_route_assignments.id`.
-- `student_transport_profiles.student_id` references `students.id` with `ON DELETE CASCADE`.
-- Primary keys are reported on the `id` column of each of the six tables.
-- `routes.route_number`, `routes.route_code`, `students.reg_no`, `admin_users.emp_id`, `student_transport_profiles.student_id`, and `(afternoon_route_assignments.assignment_date, afternoon_route_assignments.route_id)` are unique.
-- Check constraints restrict route/profile AC type, assignment type, and student gender to the listed values.
-- The export reports row-level security disabled and not forced on all six tables.
-- The export reports no views, materialized views, triggers, custom types, or RLS policies in the queried result. This is a statement about the supplied export, not a universal guarantee about later database changes.
-
-## 9. Important database/application alignment finding
-
-The JPA source also contains models mapped to `buses`, `bus_allowed_routes`, and `mock_bus_registrations`. Those tables were **not among the six base tables shown by the supplied Neon catalog export**. The source also has bus/registration-related controllers and repositories.
-
-Therefore, the supplied evidence does not establish that those three tables exist in the connected Neon database. Before using those paths in production, verify the current table list and the runtime behavior of those endpoints. The backend example sets `spring.jpa.hibernate.ddl-auto=none`, so Hibernate is not configured by that example to create missing tables automatically.
-
-The source code and the catalog export are not perfectly reconciled yet: the `Booking` entity marks `seat_number` without `nullable = false`, while the physical catalog reports `seat_number` as `NOT NULL`; the entity also does not show all database-level uniqueness declarations. The physical catalog is authoritative for the current database schema.
-
-## 10. Authentication and security notes
-
-- The backend defines a `BCryptPasswordEncoder` bean and stores password hashes in `students` and `admin_users`.
-- The supplied Student README says the current Student sign-in flow identifies the student by registration number only and does not establish a token-based authenticated session.
-- The supplied Admin frontend uses an employee-ID login flow. Review the exact controller/service implementation before claiming a particular session/token mechanism.
-- Because the catalog reports RLS disabled on all six tables, data access control must be provided by the backend/database credentials and application authorization; RLS is not currently an additional table-level protection in the supplied snapshot.
-- Do not commit `.env` files, database URLs containing credentials, database passwords, student data, or generated password hashes.
-- A BCrypt encoder being present does not, by itself, prove every login or registration flow is secure. Authentication, authorization, brute-force protections, secret management, and endpoint access need their own security review.
-
-## 11. Local development
+## 9. Configuration and local development
 
 ### Backend
 
-1. Install a compatible JDK (the supplied Maven project targets Java 21).
-2. Configure database environment variables locally, using the repository's example configuration as a template.
-3. Ensure the active `application.properties` maps `SHUBUS_DB_URL`, `SHUBUS_DB_USERNAME`, and `SHUBUS_DB_PASSWORD` to the Spring datasource properties.
-4. Run the backend from `backend/` with the Maven wrapper.
-5. The example server port is `8081`; verify the actual runtime port before configuring either app.
-
-Example environment variable names (use local values; never commit secrets):
+Set environment variables locally:
 
 ```text
-SHUBUS_DB_URL=jdbc:postgresql://<neon-host>/<database>?sslmode=require
-SHUBUS_DB_USERNAME=<database-user>
-SHUBUS_DB_PASSWORD=<database-password>
+SHUBUS_DB_URL=jdbc:postgresql://<host>/<database>?sslmode=require
+SHUBUS_DB_USERNAME=<username>
+SHUBUS_DB_PASSWORD=<password>
 ```
 
-### Flutter clients
+Then start with Java 21 and the included wrapper:
 
-From each app's `frontend/` directory:
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
+```
 
-```bash
+Default server port in the example is `8081`. Hibernate schema generation is disabled. Keep secrets outside source control.
+
+### Flutter
+
+Configure API base URLs in:
+
+- `frontend-student/lib/core/config/api_config.dart`
+- `frontend-admin/lib/services/api_config.dart`
+
+Then:
+
+```powershell
+cd frontend
 flutter pub get
-flutter run --dart-define=API_BASE_URL=http://<reachable-backend-host>:8081
+flutter run
 ```
 
-For the Student client, the API base URL is read from `API_BASE_URL`. For the Admin client, configure `API_BASE_URL` for the target machine/environment; do not depend on the local-network fallback outside its intended network.
+Use a device-reachable backend URL; `localhost` from an emulator/device may not refer to the development host.
 
-## 12. Verification status and remaining work
+## 10. Security and operational considerations
 
-### Confirmed from supplied artifacts
+- The supplied database reference warns that student flows may use registration-number-based access without token authentication. Verify `SecurityConfig`, controllers and services before deployment; do not treat a caller-supplied registration number as proof of identity.
+- Admin login returns an employee ID and active state; inspect the actual security chain and client handling before assuming endpoint protection or a persistent authenticated session.
+- Store only password hashes, never plaintext credentials. Do not publish database URLs containing credentials.
+- Do not make schema or production data changes based only on this partial reference. Prefer additive, reviewed migrations and a rollback plan.
+- Before changing bus filtering, confirm whether a `flag` column exists and what it means.
 
-- Both Flutter repository snapshots were inspected.
-- The Admin repository contains the shared Spring Boot backend.
-- The Student app calls a REST API rather than connecting directly to the database.
-- Six `public` base tables and their exported column/constraint/index metadata are documented above.
-- Booking eligibility checks are present in the supplied backend source.
-- The backend example configuration sets `ddl-auto=none`.
+## 11. Troubleshooting and maintenance
 
-### Not claimed as verified
+| Symptom | Check |
+|---|---|
+| Backend cannot connect | Verify DB environment variables, network access, SSL options and that the target Neon database is the intended environment. Do not print secrets. |
+| Missing-table/column startup or request error | Compare live schema metadata with JPA entities; `ddl-auto=none` will not create/update tables. |
+| Client cannot reach API | Check base URL, port `8081`, emulator/device networking and server bind address. |
+| No afternoon routes | Check requested date, student profile, route eligibility and assignments for that operational date. |
+| No seats or booking rejected | Check assignment/date, seat layout, booking window and existing booking/seat uniqueness. |
+| Admin login succeeds but calls are not protected | Inspect security configuration and current session/token design; response success does not establish authorization. |
+| Bus remains visible after changing `flag` | Follow the database PDF investigation: locate live column/table/row, verify environment, identify endpoint/query and compare API response to UI state. |
 
-- A live end-to-end request against the currently running backend and Neon database.
-- Current production API reachability or deployment environment.
-- The missing `bookings` column definitions at ordinal positions 3, 6, and 8.
-- The missing `student_transport_profiles` column definition at ordinal position 5.
-- Whether `buses`, `bus_allowed_routes`, and `mock_bus_registrations` exist in the connected database.
-- Production security posture or full authentication/authorization correctness.
-- Exact current row counts; the supplied table statistics are estimates.
+## 12. Known gaps and handover checklist
 
-To close the schema gaps, rerun a column query in Neon and export the result as CSV rather than copying a partial JSON output. To verify the additional model tables, query `information_schema.tables` for all `public` base tables. End-to-end runtime verification must be performed against the deployed backend without sharing database credentials.
-
-## 13. Source of truth order
-
-When sources differ, use this order:
-
-1. **Current Neon catalog** for the physical schema, constraints, indexes, and RLS state.
-2. **Current backend source** for implemented API behavior and validation.
-3. **Current Flutter source** for screens, API calls, and client-side behavior.
-4. Repository README/audit documents as explanatory context, not a replacement for the source.
+- [ ] Replace partial database notes with current schema-only Neon export and verified constraints/indexes.
+- [ ] Confirm whether bus-related tables and any `flag` column exist in the deployed database.
+- [ ] Verify authentication/authorization behavior for student and admin endpoints before production use.
+- [ ] Keep both Flutter API configs aligned with deployment environment.
+- [ ] Add actual screenshots and architecture/ER visuals to `docs/` as they become available.
+- [ ] Review API payload DTOs whenever endpoint contracts change.
 
 ---
-*Prepared from the supplied SHUBUS Admin and Student repository snapshots and Neon catalog export. Re-run verification after schema or API changes.*
+
+**Documentation source note:** The supplied README and SDC reference describe VIT EV Buggy and Firebase/Realtimedatabase behavior. Those project-specific claims were not copied into this SHUBUS documentation because they conflict with the actual workspace. Their general documentation organization and use of visual placeholders informed the presentation only.

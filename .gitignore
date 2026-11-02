@@ -6,6 +6,12 @@ frontend/.flutter-plugins-dependencies
 frontend/.packages
 frontend/android/.gradle/
 frontend/android/local.properties
+frontend-admin/.dart_tool/
+frontend-admin/build/
+frontend-admin/pubspec.lock
+frontend-student/.dart_tool/
+frontend-student/build/
+frontend-student/pubspec.lock
 
 # Spring Boot
 backend/target/
