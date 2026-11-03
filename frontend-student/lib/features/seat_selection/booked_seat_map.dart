@@ -5,7 +5,7 @@ import '../student_repository.dart';
 import 'seat_layout.dart';
 
 /// Read-only bus layout using the same colours as the seat picker:
-/// your seat = navy, faculty = yellow, other gender's area = red,
+/// your seat = navy, admin-reserved = yellow, other gender's area = red,
 /// seats booked by others = grey, free seats = white (not tappable).
 class BookedSeatMap extends StatelessWidget {
   const BookedSeatMap({
@@ -137,7 +137,7 @@ class BookedSeatMap extends StatelessWidget {
                 _MapLegend(
                   fill: AppColors.warning,
                   border: AppColors.warning,
-                  label: 'Faculty',
+                  label: 'Admin reserved',
                 ),
                 _MapLegend(
                   fill: AppColors.danger,

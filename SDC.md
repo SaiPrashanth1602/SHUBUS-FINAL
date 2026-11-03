@@ -138,7 +138,7 @@ The profile response combines student identity/status with morning route number/
 
 `features/routes/` contains afternoon route models and the route selection screen. The backend filters available route assignments for a student and requested date, using assignment type, shuttle grouping and route eligibility.
 
-`features/seat_selection/seat_selection_screen.dart` handles seat selection and booking interaction. `seat_layout.dart` defines the client visual layout and state distinctions: available, selected, booked, faculty restricted, and gender restricted. The server remains authoritative for whether a seat can be booked; client state should not be treated as a reservation lock.
+`features/seat_selection/seat_selection_screen.dart` handles seat selection and booking interaction. After a successful booking, it shows the student's booking details and a read-only seat map with the booked seat highlighted. `seat_layout.dart` defines the client visual layout and state distinctions: available, selected, booked, reserved, and gender restricted. The server remains authoritative for whether a seat can be booked; client state should not be treated as a reservation lock.
 
 `features/bookings/` displays booking data and supports retrieval/cancellation. A booking is associated with a student, date, afternoon assignment and seat number in the persistence model.
 
@@ -221,16 +221,16 @@ Student chooses service date
 ```text
 Student confirms selected assignment, date and seat
   → POST /api/students/bookings
-  → BookingService validates request, booking window and conflicts
+  → BookingService validates request, 19:30 previous-day opening,
+    13:45 travel-day cutoff and booking conflicts
   → repository persists booking
-  → BookingResponse returned
+  → BookingResponse returned and the Student UI shows the booked-seat view
 
 Student requests cancellation
   → DELETE /api/students/{regNo}/bookings/{bookingId}
-  → BookingService verifies target and cancels/deletes per implementation
+  → BookingService verifies ownership and the travel-day 13:45 cutoff
+  → booking row is deleted
 ```
-
-The precise cancellation semantics (physical delete or other state transition) should be confirmed in the current `BookingService` and entity before downstream systems rely on it.
 
 ### Admin assignment lifecycle
 
@@ -381,7 +381,7 @@ Never include data rows, passwords or credential-bearing connection URLs in a sc
 
 ### Booking window
 
-`BookingTimeRules` uses `Asia/Kolkata`. For a selected booking date, booking opens at **14:00 on the preceding calendar day** and closes at **13:45 on the booking date**. The interval is inclusive at opening and exclusive at closing. Backend booking creation is the authority; the Flutter helper exists for presentation.
+`BookingTimeRules` uses `Asia/Kolkata`. For a selected booking date, booking opens at **19:30 (7:30 PM) on the preceding calendar day** and closes at **13:45 (1:45 PM) on the booking date**. The interval is inclusive at opening and exclusive at closing. Backend booking creation is the authority; the Flutter helper exists for presentation.
 
 ### Operational date
 
@@ -389,21 +389,27 @@ Never include data rows, passwords or credential-bearing connection URLs in a sc
 
 ### Seat layout and seat states
 
-The Student UI describes the seat layout as follows:
+The bus has three seat zones:
 
 - Front row: `1A`, `1D`, `1E`, `1F`.
 - Rows 2 through 10: `A`, `B`, `D`, `E`, `F` positions (five seats per row).
 - Rear row 11: `A` through `F` (six seats).
 - The layout omits the aisle positions between seat groups.
-- Seat UI states include available, selected, booked, faculty restricted and gender restricted.
+- Rows 1-5 are for girls (24 bookable seats); row 6 is reserved for admin/staff and not student-bookable (the current API calls this seat state `FACULTY`); rows 7-11 are for boys (26 bookable seats).
+- Seat UI states include available, selected, booked, reserved, and gender restricted. After a booking succeeds, the Student UI shows the student's own seat highlighted in a read-only seat map.
+- The backend rejects a booking for the reserved row or for a seat outside the student's gender zone, even if a client submits it directly.
 
 The backend `SeatLayout` determines authoritative seats and student-bookable capacity. Check it alongside the client `seat_layout.dart` whenever the vehicle layout or restricted seats change.
 
 ### Afternoon assignment types and shuttle slots
 
-The assignment controller accepts `REGULAR` and `SHUTTLE`. Regular assignments must not have a shuttle group. Shuttle assignments require a supported group/slot. `ShuttleSlotRules` recognizes Alandur sequence slots `A1`–`A5`, Velachery `V1`–`V3`, single slots `S1` and `T1`, plus legacy group names `ALANDUR_METRO` and `VELACHERY`. Sequence availability depends on earlier slots reaching student-bookable capacity; the exact capacity is computed from backend `SeatLayout`.
+The assignment controller accepts `REGULAR` and `SHUTTLE`. Regular assignments must not have a shuttle group. Shuttle slots use destination prefixes: `A` for Alandur Metro, `V` for Velachery, `S` for Sholinganallur, and `T` for Tambaram. Default slots are `A1`-`A5`, `V1`-`V3`, `S1`, and `T1`. Admins can add further sequential slots (for example `A6`, `A7`, `V4`); the Admin UI supports slot numbers through 99. Existing assignments are restored from the backend when the schedule is loaded.
 
-The assignment controller also defines slot lists used in its own validation/compaction logic. Verify both the controller and utility whenever the slot catalogue changes so their definitions remain consistent.
+Slot type is determined by its prefix: `A`, `V`, and `S` slots are AC-only; `T` slots are Non-AC-only. Students see and can book only shuttles matching their transport profile. Regular routes must also match the student's AC/Non-AC profile and be allowed by the student's morning route.
+
+Slots are sequential. An admin must assign every earlier slot before adding a later one, and a later slot opens for students only after all preceding slots reach student-bookable capacity. Capacity is computed from backend `SeatLayout` (50 student seats total, split into 24 girls' and 26 boys' seats). Removing a shuttle assignment compacts later slots. Legacy group names `ALANDUR_METRO` and `VELACHERY` are still recognized and use the route's AC type as their fallback eligibility.
+
+Check `ShuttleSlotRules`, `AfternoonRouteAssignmentController`, and the Admin assignment UI together whenever the slot catalogue or limits change.
 
 ### Route eligibility
 

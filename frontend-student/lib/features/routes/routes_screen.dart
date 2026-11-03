@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/app_theme.dart';
+import '../../core/errors/app_exception.dart';
 import '../../core/widgets/status_views.dart';
 import '../auth/models.dart';
 import '../student_repository.dart';
@@ -65,7 +66,11 @@ class _RoutesScreenState extends State<RoutesScreen> {
           return EmptyState(
             icon: Icons.route_outlined,
             title: 'Routes unavailable',
-            message: snapshot.error.toString(),
+            message: studentErrorMessage(
+              snapshot.error,
+              fallback:
+                  'Could not load routes. Check your connection and try again.',
+            ),
             action: OutlinedButton.icon(
               onPressed: _retry,
               icon: const Icon(Icons.refresh),

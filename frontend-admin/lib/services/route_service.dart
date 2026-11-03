@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'admin_api_exception.dart';
 import '../models/route_model.dart';
 import 'api_config.dart';
 
@@ -18,6 +19,34 @@ class RouteService {
   };
   String date(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  AdminApiException _responseError(
+    http.Response response, {
+    required String fallback,
+  }) {
+    try {
+      final body = jsonDecode(response.body);
+      if (body is Map && body['error'] is String) {
+        final message = (body['error'] as String).trim();
+        if (message.isNotEmpty) return AdminApiException(message);
+      }
+    } on FormatException {
+      // Use a safe status-based message for non-JSON responses.
+    }
+
+    final message = switch (response.statusCode) {
+      400 => 'Please check the information and try again.',
+      401 || 403 => 'You are not allowed to make this change. Sign in again.',
+      404 => 'This item could not be found. Refresh and try again.',
+      409 => 'This change conflicts with existing assignments or bookings.',
+      _ => fallback,
+    };
+    return AdminApiException(message);
+  }
+
+  AdminApiException _unexpectedResponse(String action) => AdminApiException(
+    'The server returned an invalid response while trying to $action. Please try again.',
+  );
 
   Future<http.Response> _get(Uri uri, {Map<String, String>? headers}) {
     final client = _client;
@@ -72,14 +101,15 @@ class RouteService {
       ),
     ).timeout(requestTimeout);
     if (response.statusCode != 200) {
-      throw Exception(
-        'Schedule range failed (${response.statusCode}): ${response.body}',
+      throw _responseError(
+        response,
+        fallback: 'Could not load schedules. Please try again.',
       );
     }
 
     final decoded = jsonDecode(response.body);
     if (decoded is! List) {
-      throw Exception('Unexpected schedule range response');
+      throw _unexpectedResponse('load schedules');
     }
 
     for (
@@ -92,7 +122,7 @@ class RouteService {
 
     for (final item in decoded) {
       if (item is! Map || item['assignmentDate'] is! String) {
-        throw Exception('Unexpected assignment in schedule range response');
+        throw _unexpectedResponse('load schedules');
       }
       final assignmentDate = _day(DateTime.parse(item['assignmentDate']));
       map.putIfAbsent(assignmentDate, () => []).add(item);
@@ -106,9 +136,14 @@ class RouteService {
       Uri.parse('$apiUrl/api/admin/routes'),
     ).timeout(requestTimeout);
     if (r.statusCode != 200) {
-      throw Exception('Load routes failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not load routes. Please try again.',
+      );
     }
-    final data = jsonDecode(r.body) as List;
+    final decoded = jsonDecode(r.body);
+    if (decoded is! List) throw _unexpectedResponse('load routes');
+    final data = decoded;
     return data
         .map((e) => RouteModel.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
@@ -133,7 +168,10 @@ class RouteService {
       }),
     ).timeout(requestTimeout);
     if (r.statusCode != 200 && r.statusCode != 201) {
-      throw Exception('Create route failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not create the route. Please try again.',
+      );
     }
     return RouteModel.fromJson(jsonDecode(r.body));
   }
@@ -158,7 +196,10 @@ class RouteService {
       }),
     ).timeout(requestTimeout);
     if (r.statusCode != 200) {
-      throw Exception('Update route failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not save the route. Please try again.',
+      );
     }
     return RouteModel.fromJson(jsonDecode(r.body));
   }
@@ -168,7 +209,10 @@ class RouteService {
       Uri.parse('$apiUrl/api/admin/routes/$id'),
     ).timeout(requestTimeout);
     if (r.statusCode != 200 && r.statusCode != 204) {
-      throw Exception('Delete route failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not delete the route. Please try again.',
+      );
     }
   }
 
@@ -189,7 +233,10 @@ class RouteService {
       }),
     ).timeout(requestTimeout);
     if (r.statusCode != 200 && r.statusCode != 201) {
-      throw Exception('Assign failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not assign the selected bus(es). Please try again.',
+      );
     }
   }
 
@@ -208,7 +255,10 @@ class RouteService {
     ).replace(queryParameters: params);
     final r = await _put(uri, headers: headers).timeout(requestTimeout);
     if (r.statusCode != 200) {
-      throw Exception('Update assignment failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not update the assignment. Please try again.',
+      );
     }
   }
 
@@ -217,7 +267,10 @@ class RouteService {
       Uri.parse('$apiUrl/api/admin/afternoon-routes/$id'),
     ).timeout(requestTimeout);
     if (r.statusCode != 200 && r.statusCode != 204) {
-      throw Exception('De-assign failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not remove the assignment. Please try again.',
+      );
     }
   }
 
@@ -226,11 +279,14 @@ class RouteService {
       Uri.parse('$apiUrl/api/admin/afternoon-routes?date=${date(d)}'),
     ).timeout(requestTimeout);
     if (r.statusCode != 200) {
-      throw Exception('Schedule failed (${r.statusCode}): ${r.body}');
+      throw _responseError(
+        r,
+        fallback: 'Could not load the schedule. Please try again.',
+      );
     }
     final data = jsonDecode(r.body);
     if (data is! List) {
-      throw Exception('Unexpected schedule response');
+      throw _unexpectedResponse('load the schedule');
     }
     return data;
   }
@@ -243,13 +299,14 @@ class RouteService {
       headers: headers,
     ).timeout(requestTimeout);
     if (r.statusCode != 200) {
-      throw Exception(
-        'Load dashboard schedule failed (${r.statusCode}): ${r.body}',
+      throw _responseError(
+        r,
+        fallback: 'Could not load the dashboard schedule. Please try again.',
       );
     }
     final decoded = jsonDecode(r.body);
     if (decoded is! List) {
-      throw Exception('Unexpected dashboard schedule response');
+      throw _unexpectedResponse('load the dashboard schedule');
     }
     return decoded;
   }
@@ -260,15 +317,16 @@ class RouteService {
     ).timeout(requestTimeout);
 
     if (r.statusCode != 200) {
-      throw Exception(
-        'Could not load operational date (${r.statusCode}): ${r.body}',
+      throw _responseError(
+        r,
+        fallback: 'Could not load the operational date. Please try again.',
       );
     }
 
     final decoded = jsonDecode(r.body);
 
     if (decoded is! Map || decoded['operationalDate'] is! String) {
-      throw Exception('Unexpected operational date response');
+      throw _unexpectedResponse('load the operational date');
     }
 
     return _day(DateTime.parse(decoded['operationalDate'] as String));

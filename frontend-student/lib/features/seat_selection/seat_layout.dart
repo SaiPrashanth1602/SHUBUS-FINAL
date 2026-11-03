@@ -7,7 +7,7 @@ enum SeatState {
 }
 
 /// Bus zones (must match backend SeatLayout.java):
-/// rows 1-5 girls, row 6 faculty (centre), rows 7-11 boys.
+/// rows 1-5 girls, row 6 reserved for admins/staff, rows 7-11 boys.
 enum SeatZone { girls, faculty, boys }
 
 const int girlsFirstRow = 1;
@@ -55,7 +55,7 @@ List<SeatPosition> buildSeatLayout() {
   );
 
   // Rows 2-10 use the standard 2 + 3 seating arrangement.
-  // Row 6 is the faculty row (centre of the bus).
+  // Row 6 is the reserved row (centre of the bus).
   for (var row = 2; row <= 10; row++) {
     positions.addAll(
       ['A', 'B', 'D', 'E', 'F'].map((column) => SeatPosition(row, column)),

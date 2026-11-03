@@ -30,7 +30,7 @@ class StudentDashboardScreen extends StatefulWidget {
 }
 
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
-  late Future<TransportProfile?> _profileFuture;
+  late Future<TransportProfile> _profileFuture;
   late Future<BookingInfo?> _bookingFuture;
   late Future<List<AfternoonAssignment>> _assignmentsFuture;
   late DateTime _bookingDate;
@@ -54,12 +54,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     _assignmentsFuture = _loadAssignments(_bookingDate);
   }
 
-  Future<TransportProfile?> _loadProfile() async {
-    try {
-      return await widget.repository.getTransportProfile(widget.session.regNo);
-    } on AppException {
-      return null;
-    }
+  Future<TransportProfile> _loadProfile() {
+    return widget.repository.getTransportProfile(widget.session.regNo);
   }
 
   Future<BookingInfo?> _loadBooking(DateTime bookingDate) {
@@ -189,7 +185,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            FutureBuilder<TransportProfile?>(
+            FutureBuilder<TransportProfile>(
               future: _profileFuture,
               builder: (context, profileSnapshot) {
                 if (profileSnapshot.connectionState ==
@@ -199,13 +195,28 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   );
                 }
 
+                if (profileSnapshot.hasError) {
+                  return _MessageCard(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'Morning route unavailable',
+                    message: studentErrorMessage(
+                      profileSnapshot.error,
+                      fallback:
+                          'Could not load your transport profile. Check your connection and try again.',
+                    ),
+                    actionLabel: 'Retry',
+                    onAction: _refreshDashboard,
+                  );
+                }
+
                 final profile = profileSnapshot.data;
 
                 if (profile == null) {
                   return _MessageCard(
                     icon: Icons.info_outline_rounded,
                     title: 'Morning route unavailable',
-                    message: 'We could not load your assigned morning route.',
+                    message:
+                        'No transport profile was returned. Please try again.',
                     actionLabel: 'Retry',
                     onAction: _refreshDashboard,
                   );
@@ -240,8 +251,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   return _MessageCard(
                     icon: Icons.cloud_off_outlined,
                     title: 'Booking status unavailable',
-                    message:
-                        'Refresh to check whether you already have a ride booked.',
+                    message: studentErrorMessage(
+                      bookingSnapshot.error,
+                      fallback:
+                          'Could not check your booking. Check your connection and try again.',
+                    ),
                     actionLabel: 'Retry',
                     onAction: _refreshDashboard,
                   );
@@ -260,9 +274,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   );
                 }
 
-                final closedMessage = BookingWindow.closedMessage(
-                  _bookingDate,
-                );
+                final closedMessage = BookingWindow.closedMessage(_bookingDate);
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +284,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       closedMessage: closedMessage,
                     ),
                     const SizedBox(height: 24),
-                    FutureBuilder<TransportProfile?>(
+                    FutureBuilder<TransportProfile>(
                       future: _profileFuture,
                       builder: (context, profileSnapshot) {
                         final profile = profileSnapshot.data;
@@ -291,8 +303,25 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                               return _MessageCard(
                                 icon: Icons.directions_bus_outlined,
                                 title: 'Buses unavailable',
-                                message:
-                                    'Could not load eligible buses for your booking date.',
+                                message: studentErrorMessage(
+                                  assignmentsSnapshot.error,
+                                  fallback:
+                                      'Could not load eligible buses. Check your connection and try again.',
+                                ),
+                                actionLabel: 'Retry',
+                                onAction: _refreshDashboard,
+                              );
+                            }
+
+                            if (profileSnapshot.hasError) {
+                              return _MessageCard(
+                                icon: Icons.person_off_outlined,
+                                title: 'Transport profile unavailable',
+                                message: studentErrorMessage(
+                                  profileSnapshot.error,
+                                  fallback:
+                                      'Could not load your transport profile. Check your connection and try again.',
+                                ),
                                 actionLabel: 'Retry',
                                 onAction: _refreshDashboard,
                               );
@@ -832,9 +861,7 @@ class _ShuttleDestinationSections extends StatelessWidget {
 
   /// Sorts A1, A2, ... A10 numerically (not as text).
   int _slotNumber(AfternoonAssignment assignment) {
-    final match = RegExp(
-      r'(\d+)$',
-    ).firstMatch(assignment.shuttleGroup.trim());
+    final match = RegExp(r'(\d+)$').firstMatch(assignment.shuttleGroup.trim());
     return match == null ? 0 : int.tryParse(match.group(1)!) ?? 0;
   }
 
@@ -849,10 +876,9 @@ class _ShuttleDestinationSections extends StatelessWidget {
 
     final groups = <String, List<AfternoonAssignment>>{
       for (final destination in destinations)
-        destination: (assignments
-            .where((a) => _destination(a) == destination)
-            .toList()
-          ..sort((a, b) => _slotNumber(a).compareTo(_slotNumber(b)))),
+        destination:
+            (assignments.where((a) => _destination(a) == destination).toList()
+              ..sort((a, b) => _slotNumber(a).compareTo(_slotNumber(b)))),
     };
 
     final other = assignments

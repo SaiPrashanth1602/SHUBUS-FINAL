@@ -24,6 +24,13 @@ The repository brings the two experiences together through a Flutter launcher. A
 
 > **One system, two audiences:** the Student experience helps riders plan; the Admin experience helps transport staff organize service.
 
+### Current service rules
+
+- Bookings for a travel date open at **7:30 PM the previous day** and close at **1:45 PM on the travel day** (India time).
+- Seats are zoned: rows 1-5 for girls, row 6 reserved for admin/staff and unavailable to students, and rows 7-11 for boys. After booking, the student's own seat is highlighted in a read-only bus map.
+- Shuttle slots are sequential and can be extended beyond the defaults (Alandur `A1`-`A5`, Velachery `V1`-`V3`, Sholinganallur `S1`, Tambaram `T1`); the Admin UI supports slots through number 99.
+- AC students see AC shuttles (`A`, `V`, `S`); Non-AC students see Non-AC shuttles (`T`). Regular routes must match the student's transport profile and morning-route eligibility.
+
 ## The experience
 
 ### Start in the right place

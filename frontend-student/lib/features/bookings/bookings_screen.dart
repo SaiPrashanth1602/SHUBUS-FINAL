@@ -169,7 +169,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error.message),
+          content: Text(
+            studentErrorMessage(
+              error,
+              fallback: 'Could not cancel your booking. Please try again.',
+            ),
+          ),
           backgroundColor: AppColors.danger,
           behavior: SnackBarBehavior.floating,
         ),
@@ -264,7 +269,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 return _EmptyPanel(
                   icon: Icons.cloud_off_outlined,
                   title: 'Unable to load booking',
-                  message: snapshot.error.toString(),
+                  message: studentErrorMessage(
+                    snapshot.error,
+                    fallback:
+                        'Could not load your booking. Check your connection and try again.',
+                  ),
                   action: OutlinedButton.icon(
                     onPressed: _refresh,
                     icon: const Icon(Icons.refresh),

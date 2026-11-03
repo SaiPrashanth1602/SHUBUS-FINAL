@@ -65,14 +65,16 @@ class ApiClient {
 
       return response;
     } on TimeoutException {
-      throw const NetworkException('The server took too long to respond.');
+      throw const NetworkException(
+        'The server is taking too long to respond. Please try again.',
+      );
     } on SocketException {
       throw const NetworkException(
-        'Cannot reach the SHUBUS backend. Check your connection.',
+        'Could not connect to SHUBUS. Check your internet connection and try again.',
       );
     } on http.ClientException {
       throw const NetworkException(
-        'Network request failed. Check the backend connection.',
+        'Could not connect to SHUBUS. Check your internet connection and try again.',
       );
     }
   }
@@ -114,8 +116,8 @@ class ApiClient {
       404 => 'The requested information was not found.',
       409 => 'This request conflicts with the latest server state.',
       422 => 'The server could not process the submitted details.',
-      >= 500 => 'The SHUBUS server encountered an error.',
-      _ => 'Request failed with status $statusCode.',
+      >= 500 => 'SHUBUS is temporarily unavailable. Please try again later.',
+      _ => 'Could not complete the request. Please try again.',
     };
   }
 

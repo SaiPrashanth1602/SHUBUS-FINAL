@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/admin_api_exception.dart';
 import '../models/route_model.dart';
 import '../services/route_service.dart';
 
@@ -148,8 +149,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
 
   StateSetter? _editSheetSetState;
 
-  Set<int> shuttleSet(String slot) =>
-      shuttle.putIfAbsent(slot, () => <int>{});
+  Set<int> shuttleSet(String slot) => shuttle.putIfAbsent(slot, () => <int>{});
 
   Set<int> pendingSet(String slot) =>
       pendingShuttle.putIfAbsent(slot, () => <int>{});
@@ -170,6 +170,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
   }
 
   Future<void> _initializeOperationalDate() async {
+    String? operationalDateError;
     try {
       final operationalDate = await service.getCurrentOperationalDate();
 
@@ -178,11 +179,25 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       setState(() {
         selectedDate = day(operationalDate);
       });
-    } catch (_) {
-      // Fall back to the existing default date if the backend is unreachable.
+    } catch (e) {
+      operationalDateError = adminErrorMessage(
+        e,
+        fallback: 'Please try again.',
+      );
     }
 
     await load();
+
+    if (operationalDateError != null && mounted) {
+      setState(() {
+        final scheduleError = loadError;
+        const dateError =
+            'Could not load the operational date. The current default date is shown.';
+        loadError = scheduleError == null
+            ? '$dateError $operationalDateError'
+            : '$dateError $operationalDateError\n$scheduleError';
+      });
+    }
   }
 
   @override
@@ -215,7 +230,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       '${d.month.toString().padLeft(2, '0')}/'
       '${d.year}';
 
-  void _showToast(String text) {
+  void _showToast(String text, {bool isError = false}) {
     if (!mounted) return;
 
     _hideToast();
@@ -231,7 +246,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               decoration: BoxDecoration(
-                color: navy,
+                color: isError ? const Color(0xFFB42318) : navy,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
@@ -243,8 +258,10 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.check_circle_rounded,
+                  Icon(
+                    isError
+                        ? Icons.error_outline_rounded
+                        : Icons.check_circle_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
@@ -270,7 +287,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     _toastEntry = entry;
     Overlay.of(context, rootOverlay: true).insert(entry);
 
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(Duration(seconds: isError ? 7 : 3), () {
       if (_toastEntry == entry) {
         _hideToast();
       }
@@ -455,11 +472,15 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       });
     } catch (e) {
       if (mounted) {
+        final error = adminErrorMessage(
+          e,
+          fallback: 'Check your connection and try again.',
+        );
         setState(() {
           loading = false;
-          loadError = 'Could not load schedules: $e';
+          loadError = 'Could not load schedules. $error';
         });
-        _showToast('Could not load schedules: $e');
+        _showToast('Could not load schedules. $error', isError: true);
       }
     } finally {
       if (showLoading) {
@@ -584,7 +605,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     return '$prefix${maxNumber + 1}';
   }
 
-    /// A slot is "ready" if it is saved in the backend OR has a bus selected.
+  /// A slot is "ready" if it is saved in the backend OR has a bus selected.
   bool isSlotReady(String slot) =>
       isShuttleSlotFilled(selectedDate, slot) || isShuttleSlotSelected(slot);
 
@@ -829,7 +850,10 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
           );
           created += pendingRegular.length;
         } catch (e) {
-          failures.add('$dateLabel — Regular: $e');
+          failures.add(
+            '$dateLabel — Regular: '
+            '${adminErrorMessage(e, fallback: 'Could not assign the selected buses.')}',
+          );
         }
       }
 
@@ -856,7 +880,10 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
           submitted.add(slot);
           created += ids.length;
         } catch (e) {
-          failures.add('$dateLabel — $slot: $e');
+          failures.add(
+            '$dateLabel — $slot: '
+            '${adminErrorMessage(e, fallback: 'Could not assign this shuttle slot.')}',
+          );
         }
       }
 
@@ -872,6 +899,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
         _showToast(
           'Added $created bus${created == 1 ? '' : 'es'}; '
           '${failures.length} batch(es) failed. ${failures.first}',
+          isError: true,
         );
       }
     } finally {
@@ -937,7 +965,10 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
             );
             created += dayRegular.length;
           } catch (e) {
-            failures.add('$dateLabel — Regular: $e');
+            failures.add(
+              '$dateLabel — Regular: '
+              '${adminErrorMessage(e, fallback: 'Could not assign the selected buses.')}',
+            );
           }
         }
 
@@ -963,7 +994,10 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
             submitted.add(slot);
             created += ids.length;
           } catch (e) {
-            failures.add('$dateLabel — $slot: $e');
+            failures.add(
+              '$dateLabel — $slot: '
+              '${adminErrorMessage(e, fallback: 'Could not assign this shuttle slot.')}',
+            );
           }
         }
       }
@@ -984,6 +1018,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
         _showToast(
           'Created $created assignment(s); '
           '${failures.length} batch(es) failed. ${failures.first}',
+          isError: true,
         );
       }
     } finally {
@@ -1732,7 +1767,13 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
       _showToast('Assignment removed.');
     } catch (e) {
       await load(showLoading: false);
-      _showToast('Could not remove assignment: $e');
+      _showToast(
+        adminErrorMessage(
+          e,
+          fallback: 'Could not remove the assignment. Please try again.',
+        ),
+        isError: true,
+      );
     } finally {
       _hideGlobalLoading();
       if (mounted) setState(() => saving = false);
@@ -1794,7 +1835,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     _showGlobalLoading();
 
     var removed = 0;
-    final failed = <int>[];
+    final failed = <int, String>{};
 
     try {
       // Delete one at a time. The backend compacts shuttle slots after each
@@ -1803,23 +1844,38 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
         try {
           await service.deleteAssignment(id);
           removed++;
-        } catch (_) {
-          failed.add(id);
+        } catch (e) {
+          final assignment = selectedItems
+              .where((item) => assignmentIdOf(item) == id)
+              .firstOrNull;
+          final routeNumber = assignment == null
+              ? 'Assignment $id'
+              : '${assignment['routeNumber'] ?? 'Assignment $id'}';
+          failed[id] =
+              '$routeNumber: ${adminErrorMessage(e, fallback: 'Could not remove this assignment.')}';
         }
       }
 
-      selectedAssignmentIds.removeAll(ids.where((id) => !failed.contains(id)));
+      selectedAssignmentIds.removeAll(
+        ids.where((id) => !failed.containsKey(id)),
+      );
 
       await load(showLoading: false);
 
       _refreshEditSheet();
 
-      _showToast(
-        failed.isEmpty
-            ? 'Removed $removed assignment(s).'
-            : 'Removed $removed assignment(s); '
-                  '${failed.length} could not be removed.',
-      );
+      if (failed.isEmpty) {
+        _showToast('Removed $removed assignment(s).');
+      } else {
+        final reasons = failed.values.take(3).join('\n');
+        final remaining = failed.length > 3
+            ? '\nAnd ${failed.length - 3} more could not be removed.'
+            : '';
+        _showToast(
+          'Removed $removed assignment(s). Could not remove:\n$reasons$remaining',
+          isError: true,
+        );
+      }
     } finally {
       _hideGlobalLoading();
       if (mounted) setState(() => saving = false);
@@ -1997,7 +2053,7 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
     final canAdd = canAddMoreSlot(dest);
     final unsaved = emptySlotsOf(dest);
 
-        String? hint;
+    String? hint;
     if (next == null) {
       hint = 'Maximum number of slots reached.';
     } else if (!canAdd && unsaved.isNotEmpty) {
@@ -2045,7 +2101,10 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
               padding: const EdgeInsets.only(top: 6, left: 4),
               child: Text(
                 hint,
-                style: const TextStyle(fontSize: 10.5, color: Color(0xFF758198)),
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: Color(0xFF758198),
+                ),
               ),
             ),
         ],
@@ -2384,6 +2443,35 @@ class AfternoonAssignmentScreenState extends State<AfternoonAssignmentScreen> {
                       minHeight: 3,
                       backgroundColor: Color(0x2212305A),
                       color: navy,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (loadError != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF4F2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.cloud_off_outlined,
+                          color: Color(0xFFB42318),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            loadError!,
+                            style: const TextStyle(color: Color(0xFF7A271A)),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _initializeOperationalDate,
+                          child: const Text('Retry'),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),

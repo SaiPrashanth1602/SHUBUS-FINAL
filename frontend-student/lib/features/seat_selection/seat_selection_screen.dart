@@ -125,7 +125,12 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
       }
 
       if (error is AppException && error.statusCode == 409) {
-        _returnToDashboardForRefresh();
+        _returnToDashboardForRefresh(
+          message: studentErrorMessage(
+            error,
+            fallback: 'This bus is no longer available for booking.',
+          ),
+        );
         return;
       }
 
@@ -135,7 +140,10 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Unable to load seat availability: $error'),
+          content: Text(
+            'Could not load seat availability. '
+            '${studentErrorMessage(error, fallback: 'Please try again.')}',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -178,8 +186,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     return _seatStatus(position) == 'AVAILABLE';
   }
 
-
-    Set<String> get _bookedSeatLabels => {
+  Set<String> get _bookedSeatLabels => {
     for (final seat in _seats)
       if ((seat['status'] ?? '').toString().toUpperCase() == 'BOOKED')
         (seat['seatNumber'] ?? '').toString(),
@@ -291,11 +298,34 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
       if (!mounted) return;
 
       if (error.statusCode == 409) {
-        _returnToDashboardForRefresh();
+        final message = studentErrorMessage(
+          error,
+          fallback:
+              'Your booking could not be completed because availability changed.',
+        );
+        if (error.message.toLowerCase() == 'seat already booked') {
+          _showMessage(message);
+          setState(() => _bookingInProgress = false);
+          await _selectAssignment(assignment);
+          return;
+        }
+        if (error.message.toLowerCase() ==
+            'student already has a booking for this date') {
+          _returnToDashboardForRefresh(message: message);
+          return;
+        }
+        _showMessage(message);
+        setState(() => _bookingInProgress = false);
+        await _selectAssignment(assignment);
         return;
       }
 
-      _showMessage(error.message);
+      _showMessage(
+        studentErrorMessage(
+          error,
+          fallback: 'Booking failed. Please try again.',
+        ),
+      );
 
       // Refresh the seat map in case another student booked the seat.
       setState(() {
@@ -315,13 +345,14 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
     }
   }
 
-  void _returnToDashboardForRefresh() {
+  void _returnToDashboardForRefresh({String? message}) {
     if (!mounted) return;
 
     _refreshAssignments();
     _showMessage(
-      'This ride is no longer available for booking. The route list has been '
-      'refreshed; please choose an available ride.',
+      message ??
+          'This ride is no longer available for booking. The route list has been '
+              'refreshed; please choose an available ride.',
     );
     Navigator.of(context).pop();
   }
@@ -347,7 +378,11 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
           return EmptyState(
             icon: Icons.cloud_off_outlined,
             title: 'Routes unavailable',
-            message: snapshot.error.toString(),
+            message: studentErrorMessage(
+              snapshot.error,
+              fallback:
+                  'Could not load available buses. Check your connection and try again.',
+            ),
             action: OutlinedButton.icon(
               onPressed: () {
                 setState(() {
@@ -591,7 +626,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
               Expanded(
                 child: _BookingDetail(label: 'SEAT', value: booking.seatNumber),
               ),
-                            Expanded(
+              Expanded(
                 child: _BookingDetail(
                   label: 'ROUTE',
                   value: booking.routeNumber.toString(),
@@ -839,7 +874,7 @@ class _SeatMap extends StatelessWidget {
               _Legend(color: Colors.white, label: 'Available'),
               _Legend(color: AppColors.blue, label: 'Selected'),
               _Legend(color: Colors.black38, label: 'Booked'),
-              _Legend(color: AppColors.warning, label: 'Faculty'),
+              _Legend(color: AppColors.warning, label: 'Admin reserved'),
               _Legend(color: AppColors.danger, label: 'Restricted'),
             ],
           ),

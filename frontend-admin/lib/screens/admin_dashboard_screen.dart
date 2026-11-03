@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/admin_api_exception.dart';
 import '../services/route_service.dart';
 import 'routes_screen.dart';
 import 'afternoon_assignment_screen.dart';
@@ -111,7 +112,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (mounted) {
         setState(() {
           loading = false;
-          error = '$e';
+          error = adminErrorMessage(
+            e,
+            fallback: 'Check your connection and try again.',
+          );
         });
       }
     }
@@ -184,7 +188,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   /// Highest slot number for a prefix, e.g. A1..A7 -> "Open till A7".
   /// Works for any number of extra slots (A6, A7, V4, S2, T2 ...).
   String _openTill(List<Map<String, dynamic>> buses, String prefix) {
-    final pattern = RegExp('^$prefix' r'(\d+)$');
+    final pattern = RegExp(
+      '^$prefix'
+      r'(\d+)$',
+    );
     var highest = 0;
 
     for (final bus in buses) {

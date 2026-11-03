@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/route_model.dart';
+import '../services/admin_api_exception.dart';
 import '../services/route_service.dart';
 import '../widgets/route_form.dart';
 
@@ -44,8 +45,12 @@ class RoutesScreenState extends State<RoutesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => loadError = 'Failed to load routes: $e');
-        message('Failed to load routes: $e');
+        final error = adminErrorMessage(
+          e,
+          fallback: 'Check your connection and try again.',
+        );
+        setState(() => loadError = 'Could not load routes. $error');
+        message('Could not load routes. $error');
       }
     } finally {
       _loadInProgress = false;
@@ -89,7 +94,10 @@ class RoutesScreenState extends State<RoutesScreen> {
       message('Route created');
       await load();
     } catch (e) {
-      message('Create failed: $e');
+      message(
+        'Could not create the route. '
+        '${adminErrorMessage(e, fallback: 'Please try again.')}',
+      );
     }
   }
 
@@ -116,7 +124,10 @@ class RoutesScreenState extends State<RoutesScreen> {
       message('Route updated');
       await load();
     } catch (e) {
-      message('Update failed: $e');
+      message(
+        'Could not save the route. '
+        '${adminErrorMessage(e, fallback: 'Please try again.')}',
+      );
     }
   }
 
@@ -146,7 +157,10 @@ class RoutesScreenState extends State<RoutesScreen> {
       message('Route deleted');
       await load();
     } catch (e) {
-      message('Delete failed: $e');
+      message(
+        'Could not delete the route. '
+        '${adminErrorMessage(e, fallback: 'Please try again.')}',
+      );
     }
   }
 
@@ -220,6 +234,7 @@ class RoutesScreenState extends State<RoutesScreen> {
                         style: const TextStyle(color: Color(0xFF7A271A)),
                       ),
                     ),
+                    TextButton(onPressed: load, child: const Text('Retry')),
                   ],
                 ),
               ),
