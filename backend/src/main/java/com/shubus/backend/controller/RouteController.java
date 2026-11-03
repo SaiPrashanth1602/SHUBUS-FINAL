@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.shubus.backend.dto.RouteResponse;
 import com.shubus.backend.model.Route;
+import com.shubus.backend.repository.AfternoonRouteAssignmentRepository;
 import com.shubus.backend.repository.RouteRepository;
 
 @RestController
@@ -23,9 +24,13 @@ import com.shubus.backend.repository.RouteRepository;
 public class RouteController {
 
     private final RouteRepository routeRepository;
+    private final AfternoonRouteAssignmentRepository assignmentRepository;
 
-    public RouteController(RouteRepository routeRepository) {
+    public RouteController(
+            RouteRepository routeRepository,
+            AfternoonRouteAssignmentRepository assignmentRepository) {
         this.routeRepository = routeRepository;
+        this.assignmentRepository = assignmentRepository;
     }
 
     @GetMapping
@@ -144,10 +149,19 @@ public class RouteController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRoute(@PathVariable Long id) {
+    public ResponseEntity<?> deleteRoute(@PathVariable Long id) {
 
-        if (!routeRepository.existsById(id)) {
+        Route route = routeRepository.findById(id).orElse(null);
+        if (route == null) {
             return ResponseEntity.notFound().build();
+        }
+
+        if (assignmentRepository.existsByRoute_Id(id)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    java.util.Map.of(
+                            "error",
+                            "Cannot delete route " + route.getRouteNumber()
+                                    + " because it has assigned buses. Remove its assignments first."));
         }
 
         routeRepository.deleteById(id);
@@ -170,8 +184,16 @@ public class RouteController {
 
     private void requireValue(String value, String field) {
         if (value == null || value.isBlank()) {
+            String label = switch (field) {
+                case "routeNumber" -> "Route number";
+                case "routeCode" -> "Route code";
+                case "routeName" -> "Route name";
+                case "acType" -> "Bus type";
+                case "allowedRoutes" -> "Allowed afternoon routes";
+                default -> "This field";
+            };
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, field + " is required");
+                    HttpStatus.BAD_REQUEST, label + " is required");
         }
     }
 }

@@ -16,6 +16,7 @@ import com.shubus.backend.model.Booking;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
+    boolean existsByAfternoonAssignment_Id(Long assignmentId);
 
     Optional<Booking> findByStudentIdAndBookingDate(
             Long studentId,

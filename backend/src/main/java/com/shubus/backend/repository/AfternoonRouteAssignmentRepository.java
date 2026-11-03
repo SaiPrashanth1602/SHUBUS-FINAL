@@ -22,4 +22,6 @@ public interface AfternoonRouteAssignmentRepository
     boolean existsByAssignmentDateAndRoute_Id(
             LocalDate assignmentDate, Long routeId
     );
+
+    boolean existsByRoute_Id(Long routeId);
 }

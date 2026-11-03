@@ -29,6 +29,7 @@ import com.shubus.backend.dto.AfternoonRouteAssignmentResponse;
 import com.shubus.backend.model.AfternoonRouteAssignment;
 import com.shubus.backend.model.Route;
 import com.shubus.backend.repository.AfternoonRouteAssignmentRepository;
+import com.shubus.backend.repository.BookingRepository;
 import com.shubus.backend.repository.RouteRepository;
 import com.shubus.backend.util.ShuttleSlotRules;
 
@@ -39,13 +40,16 @@ public class AfternoonRouteAssignmentController {
 
 
     private final AfternoonRouteAssignmentRepository assignmentRepository;
+    private final BookingRepository bookingRepository;
     private final RouteRepository routeRepository;
 
 
     public AfternoonRouteAssignmentController(
             AfternoonRouteAssignmentRepository assignmentRepository,
+            BookingRepository bookingRepository,
             RouteRepository routeRepository) {
         this.assignmentRepository = assignmentRepository;
+        this.bookingRepository = bookingRepository;
         this.routeRepository = routeRepository;
     }
 
@@ -155,8 +159,8 @@ public class AfternoonRouteAssignmentController {
             if (assignmentRepository.existsByAssignmentDateAndRoute_Id(
                     request.date(), routeId)) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                        java.util.Map.of("error", "Route " + routeId +
-                                " is already assigned for " + request.date()));
+                        java.util.Map.of("error", "Route " + route.getRouteNumber()
+                                + " is already assigned for " + request.date()));
             }
 
 
@@ -222,7 +226,8 @@ public class AfternoonRouteAssignmentController {
 
         if (assignmentRepository.existsByAssignmentDateAndRoute_Id(date, routeId)) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(
-                    java.util.Map.of("error", "Route is already assigned for " + date));
+                    java.util.Map.of("error", "Route " + route.getRouteNumber()
+                            + " is already assigned for " + date));
         }
 
 
@@ -319,7 +324,7 @@ public class AfternoonRouteAssignmentController {
 
     @Transactional
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteAssignment(@PathVariable Long id) {
+    public ResponseEntity<?> deleteAssignment(@PathVariable Long id) {
         AfternoonRouteAssignment assignment = assignmentRepository.findById(id).orElse(null);
 
 
@@ -327,6 +332,15 @@ public class AfternoonRouteAssignmentController {
             return ResponseEntity.notFound().build();
         }
 
+        if (bookingRepository.existsByAfternoonAssignment_Id(id)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    java.util.Map.of(
+                            "error",
+                            "Cannot remove the bus assignment for route "
+                                    + assignment.getRoute().getRouteNumber()
+                                    + " on " + assignment.getAssignmentDate()
+                                    + " because bookings already exist."));
+        }
 
         LocalDate date = assignment.getAssignmentDate();
         String assignmentType = assignment.getAssignmentType();
@@ -351,32 +365,32 @@ public class AfternoonRouteAssignmentController {
             String shuttleGroup) {
 
 
-        if (date == null) return "date is required";
-        if (routeIds == null || routeIds.isEmpty()) return "At least one routeId is required";
-        if (assignmentType == null) return "assignmentType is required";
+        if (date == null) return "Select an assignment date.";
+        if (routeIds == null || routeIds.isEmpty()) return "Select at least one route.";
+        if (assignmentType == null) return "Choose an assignment type.";
 
 
         String type = assignmentType.trim().toUpperCase(Locale.ROOT);
 
 
         if (!type.equals("REGULAR") && !type.equals("SHUTTLE")) {
-            return "assignmentType must be REGULAR or SHUTTLE";
+            return "Choose either a regular or shuttle assignment.";
         }
 
 
         if (type.equals("REGULAR") && shuttleGroup != null && !shuttleGroup.isBlank()) {
-            return "REGULAR assignments cannot have a shuttleGroup";
+            return "A regular assignment cannot use a shuttle slot.";
         }
 
 
         if (type.equals("SHUTTLE")) {
             if (shuttleGroup == null || shuttleGroup.isBlank()) {
-                return "SHUTTLE assignments require a shuttleGroup or slot";
+                return "Choose a shuttle slot.";
             }
 
 
             if (!ShuttleSlotRules.isSupported(shuttleGroup)) {
-                return "Unsupported shuttle group/slot: " + shuttleGroup;
+                return "The selected shuttle slot is not supported.";
             }
         }
 
@@ -447,7 +461,7 @@ public class AfternoonRouteAssignmentController {
             String shuttleGroup
     ) {
         if (shuttleGroup == null || shuttleGroup.isBlank()) {
-            return "SHUTTLE assignments require a shuttleGroup or slot";
+            return "Choose a shuttle slot.";
         }
 
 
