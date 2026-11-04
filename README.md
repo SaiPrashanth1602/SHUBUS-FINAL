@@ -8,7 +8,9 @@
 [![Flutter](https://img.shields.io/badge/Flutter-Dart-02569B?logo=flutter&logoColor=white)](https://flutter.dev) [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-Java-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?logo=postgresql&logoColor=white)](https://neon.tech)
 
 <!-- HERO IMAGE PLACEHOLDER: add docs/assets/shubus-hero.png — branded app mockups with a campus shuttle backdrop -->
-<img src="docs/assets/shubus-hero.png" alt="SHUBUS app and campus shuttle" width="880" />
+<img width="1199" height="1312" alt="image" src="https://github.com/user-attachments/assets/528c53d6-c466-474d-bc13-faa880d63e90" />
+
+
 
 **Student App** &nbsp; · &nbsp; **Admin App** &nbsp; · &nbsp; **One shared service**
 
@@ -36,7 +38,8 @@ The repository brings the two experiences together through a Flutter launcher. A
 ### Start in the right place
 
 <!-- SCREEN PLACEHOLDER: docs/screenshots/launcher.png — app selection screen -->
-<p align="center"><img src="docs/screenshots/launcher.png" alt="SHUBUS app selection screen" width="280" /></p>
+<img width="1080" height="2392" alt="image" src="https://github.com/user-attachments/assets/2ea27881-2852-4c6b-af4b-f8df42fee330" />
+
 <p align="center"><sub><b>01 · Choose an experience</b> — Enter the Student or Admin app from the SHUBUS launcher.</sub></p>
 
 ### For students
@@ -45,12 +48,19 @@ Students enter through the host application's identity flow and use the registra
 
 | Transport profile | Afternoon routes | Route details |
 |:---:|:---:|:---:|
-| <!-- SCREEN PLACEHOLDER: docs/screenshots/student-profile.png --> ![Student profile screen](docs/screenshots/student-profile.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-routes.png --> ![Available routes screen](docs/screenshots/student-routes.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-route-details.png --> ![Route details screen](docs/screenshots/student-route-details.png) |
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/student-profile.png --> <img width="1080" height="2392" alt="image" src="https://github.com/user-attachments/assets/e08d6430-cd02-495e-9bb6-7403a800459a" />
+ <img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/45c330f5-c37e-4672-8f7e-e4e4ff2c9ceb" />
+
 | **02 · Your transport**<br>Assigned route and transport profile | **03 · Explore availability**<br>Afternoon service for a selected date | **04 · Choose a service**<br>Review route and shuttle information |
 
 | Seat selection | Booking confirmation | My bookings |
 |:---:|:---:|:---:|
-| <!-- SCREEN PLACEHOLDER: docs/screenshots/student-seats.png --> ![Seat selection screen](docs/screenshots/student-seats.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-confirmation.png --> ![Booking confirmation screen](docs/screenshots/student-confirmation.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-bookings.png --> ![Bookings screen](docs/screenshots/student-bookings.png) |
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/student-seats.png --> <img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/a4ff4ab7-89dc-48c2-950b-515e342381f0" />
+<img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/b3768b7a-28a7-4944-8883-1d3e9848d5bc" />
+<img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/4b1bd609-3d8c-43d3-9785-ae39f9bb6764" />
+<img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/3d0f7888-451e-4c47-b473-b23e525597e8" />
+
+ <!-- SCREEN PLACEHOLDER: docs/screenshots/student-confirmation.png --> ![Booking confirmation screen](docs/screenshots/student-confirmation.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/student-bookings.png --> ![Bookings screen](docs/screenshots/student-bookings.png) |
 | **05 · Pick a seat**<br>Available, selected, booked and restricted states | **06 · Reserve your ride**<br>Booking result and ride details | **07 · Manage plans**<br>View or cancel a reservation |
 
 ### For transport administrators
@@ -59,12 +69,20 @@ The Admin app provides operational tools for route and assignment management. Ro
 
 | Admin sign in | Operations dashboard | Route management |
 |:---:|:---:|:---:|
-| <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-login.png --> ![Admin login](docs/screenshots/admin-login.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-dashboard.png --> ![Admin dashboard](docs/screenshots/admin-dashboard.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-routes.png --> ![Route management](docs/screenshots/admin-routes.png) |
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-login.png --> <img width="1080" height="2392" alt="image" src="https://github.com/user-attachments/assets/d91c717d-1d1f-490d-a897-82cf365ec6f1" />
+<img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/bd40e577-2ec5-41da-8403-1b1b38d51848" />
+
+ <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-dashboard.png --> ![Admin dashboard](docs/screenshots/admin-dashboard.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-routes.png --> ![Route management](docs/screenshots/admin-routes.png) |
 | **01 · Admin access** | **02 · Daily overview** | **03 · Maintain routes** |
 
 | Afternoon assignments | Schedule view | Assignment editor |
 |:---:|:---:|:---:|
-| <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-assignments.png --> ![Afternoon assignments](docs/screenshots/admin-assignments.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-schedule.png --> ![Admin schedule](docs/screenshots/admin-schedule.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-assignment-editor.png --> ![Assignment editor](docs/screenshots/admin-assignment-editor.png) |
+| <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-assignments.png --><img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/08ffde55-7fc2-4ed3-80b9-a46d9473258e" />
+ | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-schedule.png --> <img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/8ad38c98-c887-473d-8008-bca7858df9db" />
+ <img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/f4c36c09-0c45-4fe2-9c93-8517257e7c19" />
+<img width="1080" height="2392" alt="image" src="https://github.com/user-attachments/assets/4c181303-3e77-4fd3-8cc1-7c873e7e72ae" />
+
+ <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-assignment-editor.png --> ![Assignment editor](docs/screenshots/admin-assignment-editor.png) |
 | **04 · Organize service** | **05 · Review the day** | **06 · Set route and shuttle slots** |
 
 > **Screenshot placeholders:** Add images under `docs/screenshots/` using the paths above, or change the links to match your image files. Additional empty, loading, validation and success states can help explain the complete experience. Do not use real student personal information in screenshots.
