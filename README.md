@@ -69,7 +69,6 @@ Available, selected, booked and restricted states
 <p align="center">
 <img src="https://github.com/user-attachments/assets/a4ff4ab7-89dc-48c2-950b-515e342381f0" width="150" alt="Seat selection screen"/>
 <img src="https://github.com/user-attachments/assets/b3768b7a-28a7-4944-8883-1d3e9848d5bc" width="150" alt="Seat booking state"/>
-<img src="https://github.com/user-attachments/assets/4b1bd609-3d8c-43d3-9785-b515e342381f0" width="150" alt="Seat booking screen"/>
 <img src="https://github.com/user-attachments/assets/3d0f7888-451e-4c47-b473-b23e525597e8" width="150" alt="Seat selection details"/>
 </p>
 
