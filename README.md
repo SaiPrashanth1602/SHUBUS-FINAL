@@ -20,89 +20,119 @@ Start in the right place
 <!-- SCREEN PLACEHOLDER: docs/screenshots/launcher.png — app selection screen -->
 <p align="center"><img src="https://github.com/user-attachments/assets/2ea27881-2852-4c6b-af4b-f8df42fee330" alt="SHUBUS app selection screen" width="260" /></p><p align="center"><sub><b>01 · Choose an experience</b> — Enter the Student or Admin app from the SHUBUS launcher.</sub></p>For students
 Students enter through the host application's identity flow and use the registration number supplied to SHUBUS to load their transport profile. The experience is organized around the information and actions needed to plan a ride.
-Transport profile	Afternoon routes	Route details
-<img src="https://github.com/user-attachments/assets/e08d6430-cd02-495e-9bb6-7403a800459a" alt="Student transport profile" width="180" />	<img src="https://github.com/user-attachments/assets/45c330f5-c37e-4672-8f7e-e4e4ff2c9ceb" alt="Afternoon route availability" width="180" />	—
-02 · Your transport
-Assigned route and transport profile	03 · Explore availability
-Afternoon service for a selected date	04 · Choose a service
-Review route and shuttle information
-
-
-Seat selection	Booking confirmation	My bookings
-<img src="https://github.com/user-attachments/assets/a4ff4ab7-89dc-48c2-950b-515e342381f0" alt="Seat selection" width="105" /> <img src="https://github.com/user-attachments/assets/b3768b7a-28a7-4944-8883-1d3e9848d5bc" alt="Seat booking state" width="105" /> <img src="https://github.com/user-attachments/assets/4b1bd609-3d8c-43d3-9785-ae39f9bb6764" alt="Seat booking screen" width="105" /> <img src="https://github.com/user-attachments/assets/3d0f7888-451e-4c47-b473-b23e525597e8" alt="Seat selection details" width="105" />	<img src="docs/screenshots/student-confirmation.png" alt="Booking confirmation screen" width="180" />	<img src="docs/screenshots/student-bookings.png" alt="Bookings screen" width="180" />
-05 · Pick a seat
-Available, selected, booked and restricted states	06 · Reserve your ride
-Booking result and ride details	07 · Manage plans
-View or cancel a reservation
-
-
-For transport administrators
+<table>
+  <tr>
+    <th align="center">Transport profile</th>
+    <th align="center">Afternoon routes</th>
+    <th align="center">Route details</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><img src="https://github.com/user-attachments/assets/e08d6430-cd02-495e-9bb6-7403a800459a" alt="Student transport profile" width="190" /></td>
+    <td align="center" valign="top"><img src="https://github.com/user-attachments/assets/45c330f5-c37e-4672-8f7e-e4e4ff2c9ceb" alt="Afternoon route availability" width="190" /></td>
+    <td align="center" valign="top"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>02 · Your transport</strong><br/>Assigned route and transport profile</td>
+    <td align="center"><strong>03 · Explore availability</strong><br/>Afternoon service for a selected date</td>
+    <td align="center"><strong>04 · Choose a service</strong><br/>Review route and shuttle information</td>
+  </tr>
+</table><table>
+  <tr>
+    <th align="center">Seat selection</th>
+    <th align="center">Booking confirmation</th>
+    <th align="center">My bookings</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top">
+      <img src="https://github.com/user-attachments/assets/a4ff4ab7-89dc-48c2-950b-515e342381f0" alt="Seat selection screen" width="82" />
+      <img src="https://github.com/user-attachments/assets/b3768b7a-28a7-4944-8883-1d3e9848d5bc" alt="Seat booking state" width="82" />
+      <img src="https://github.com/user-attachments/assets/4b1bd609-3d8c-43d3-9785-b515e342381f0" alt="Seat booking screen" width="82" />
+      <img src="https://github.com/user-attachments/assets/3d0f7888-451e-4c47-b473-b23e525597e8" alt="Seat selection details" width="82" />
+    </td>
+    <td align="center" valign="middle"></td>
+    <td align="center" valign="middle"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>05 · Pick a seat</strong><br/>Available, selected, booked and restricted states</td>
+    <td align="center"><strong>06 · Reserve your ride</strong><br/>Booking result and ride details</td>
+    <td align="center"><strong>07 · Manage plans</strong><br/>View or cancel a reservation</td>
+  </tr>
+</table>For transport administrators
 The Admin app provides operational tools for route and assignment management. Route records describe services available to the system; date-based afternoon assignments determine what is offered to students. Dashboard and schedule views bring daily operations together.
-Admin sign in	Operations dashboard	Route management
-<!-- SCREEN PLACEHOLDER: docs/screenshots/admin-login.png --> <img width="1080" height="2392" alt="image" src="https://github.com/user-attachments/assets/d91c717d-1d1f-490d-a897-82cf365ec6f1" />		
-<img width="722" height="1600" alt="image" src="https://github.com/user-attachments/assets/bd40e577-2ec5-41da-8403-1b1b38d51848" />		
+<table>
+  <tr>
+    <th align="center">Admin sign in</th>
+    <th align="center">Operations dashboard</th>
+    <th align="center">Route management</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><img src="https://github.com/user-attachments/assets/d91c717d-1d1f-490d-a897-82cf365ec6f1" alt="Admin sign in" width="180" /></td>
+    <td align="center" valign="top"><img src="https://github.com/user-attachments/assets/bd40e577-2ec5-41da-8403-1b1b38d51848" alt="Admin operations screen" width="180" /></td>
+    <td align="center" valign="middle"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>01 · Admin access</strong></td>
+    <td align="center"><strong>02 · Daily overview</strong></td>
+    <td align="center"><strong>03 · Maintain routes</strong></td>
+  </tr>
+</table><table>
+  <tr>
+    <th align="center">Afternoon assignments</th>
+    <th align="center">Schedule view</th>
+    <th align="center">Assignment editor</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><img src="https://github.com/user-attachments/assets/08ffde55-7fc2-4ed3-80b9-a46d9473258e" alt="Afternoon assignments" width="180" /></td>
+    <td align="center" valign="top">
+      <img src="https://github.com/user-attachments/assets/8ad38c98-c887-473d-8008-bca7858df9db" alt="Schedule view" width="135" />
+      <img src="https://github.com/user-attachments/assets/f4c36c09-0c45-4fe2-9c93-8517257e7c19" alt="Schedule details" width="135" />
+    </td>
+    <td align="center" valign="top"><img src="https://github.com/user-attachments/assets/4c181303-3e77-4fd3-8cc1-7c873e7e72ae" alt="Assignment editor" width="180" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>04 · Organize service</strong></td>
+    <td align="center"><strong>05 · Review the day</strong></td>
+    <td align="center"><strong>06 · Set route and shuttle slots</strong></td>
+  </tr>
+</table>Screenshot placeholders: Add images under docs/screenshots/ using the paths above, or change the links to match your image files. Additional empty, loading, validation and success states can help explain the complete experience. Do not use real student personal information in screenshots.
 
-
- <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-dashboard.png --> ![Admin dashboard](docs/screenshots/admin-dashboard.png) | <!-- SCREEN PLACEHOLDER: docs/screenshots/admin-routes.png --> ![Route management](docs/screenshots/admin-routes.png) |
-| 01 · Admin access | 02 · Daily overview | 03 · Maintain routes |
-Admin sign in	Operations dashboard	Route management
-<img src="https://github.com/user-attachments/assets/d91c717d-1d1f-490d-a897-82cf365ec6f1" alt="Admin sign in" width="180" />	<img src="https://github.com/user-attachments/assets/bd40e577-2ec5-41da-8403-1b1b38d51848" alt="Admin operations screen" width="180" /> <img src="docs/screenshots/admin-dashboard.png" alt="Admin dashboard" width="180" />	<img src="docs/screenshots/admin-routes.png" alt="Route management" width="180" />
-01 · Admin access	02 · Daily overview	03 · Maintain routes
-
-
-Afternoon assignments	Schedule view	Assignment editor
-<img src="https://github.com/user-attachments/assets/08ffde55-7fc2-4ed3-80b9-a46d9473258e" alt="Afternoon assignments" width="180" />	<img src="https://github.com/user-attachments/assets/8ad38c98-c887-473d-8008-bca7858df9db" alt="Schedule view" width="150" /> <img src="https://github.com/user-attachments/assets/f4c36c09-0c45-4fe2-9c93-8517257e7c19" alt="Schedule details" width="150" />	<img src="https://github.com/user-attachments/assets/4c181303-3e77-4fd3-8cc1-7c873e7e72ae" alt="Assignment editor" width="180" /> <img src="docs/screenshots/admin-assignment-editor.png" alt="Assignment editor" width="180" />
-04 · Organize service	05 · Review the day	06 · Set route and shuttle slots
-subgraph App[Flutter application]		
-
-
-Launcher[SHUBUS launcher]
-Student[Student experience]
-Admin[Admin experience]
-Launcher --> Student
-Launcher --> Admin
-
+How SHUBUS fits together
+```mermaid
+flowchart LR
+  subgraph App[Flutter application]
+    Launcher[SHUBUS launcher]
+    Student[Student experience]
+    Admin[Admin experience]
+    Launcher --> Student
+    Launcher --> Admin
   end
-Student -->|HTTP / JSON| API[Spring Boot REST API]
-Admin -->|HTTP / JSON| API
-API --> Services[Business services]
-Services --> Repositories[Spring Data repositories]
-Repositories --> DB[(PostgreSQL · Neon)]
+  Student -->|HTTP / JSON| API[Spring Boot REST API]
+  Admin -->|HTTP / JSON| API
+  API --> Services[Business services]
+  Services --> Repositories[Spring Data repositories]
+  Repositories --> DB[(PostgreSQL · Neon)]
+```
+<!-- DIAGRAM PLACEHOLDER: docs/assets/system-architecture.png — polished export of the flow above -->The clients present the user experience. The API owns shared workflow rules and persistence operations. Database entities represent persistent records, repositories query them, and services coordinate actions such as availability, booking, and assignment management.
+What the system supports
+Student services	Administration	Shared platform
+Student and transport profile lookup	Admin sign-in and dashboard	Flutter launcher with Student/Admin entry points
+Afternoon route availability by date	Route creation and maintenance	Spring Boot REST API
+Seat availability and seat selection	Date-specific afternoon assignments	PostgreSQL persistence via Spring Data JPA
+Create, view and cancel bookings	Schedule and route operations	Centralized booking, date and shuttle-slot rules
 
-<!-- DIAGRAM PLACEHOLDER: docs/assets/system-architecture.png — polished export of the flow above -->
-
-The clients present the user experience. The API owns shared workflow rules and persistence operations. Database entities represent persistent records, repositories query them, and services coordinate actions such as availability, booking, and assignment management.
-
-## What the system supports
-
-| Student services | Administration | Shared platform |
-|---|---|---|
-| Student and transport profile lookup | Admin sign-in and dashboard | Flutter launcher with Student/Admin entry points |
-| Afternoon route availability by date | Route creation and maintenance | Spring Boot REST API |
-| Seat availability and seat selection | Date-specific afternoon assignments | PostgreSQL persistence via Spring Data JPA |
-| Create, view and cancel bookings | Schedule and route operations | Centralized booking, date and shuttle-slot rules |
 
 Backend source also includes bus registration and route-to-bus API components. The supplied database reference does not confirm those tables in the live catalog, so they are described as code areas rather than guaranteed deployed schema.
-
-## Data at a glance
-
-The documented database is PostgreSQL hosted on Neon. The supplied database reference reports six catalog tables from an earlier export: `students`, `student_transport_profiles`, `routes`, `afternoon_route_assignments`, `bookings`, and `admin_users`. It marks that export as **partially verified**: several column positions are missing, and bus-related source entities are not confirmed in the catalog.
-
+Data at a glance
+The documented database is PostgreSQL hosted on Neon. The supplied database reference reports six catalog tables from an earlier export: students, student_transport_profiles, routes, afternoon_route_assignments, bookings, and admin_users. It marks that export as partially verified: several column positions are missing, and bus-related source entities are not confirmed in the catalog.
 <!-- DATABASE DIAGRAM PLACEHOLDER: docs/assets/database-erd.png — create only from a current verified schema export -->
-
-See [SDC.md](SDC.md#database-reference-and-data-model) for table notes, relationships, known gaps and safe schema verification queries.
-
-## Technology
-
-- **Mobile and app UI:** Flutter / Dart
-- **API:** Java 21, Spring Boot, Spring MVC
-- **Persistence:** Spring Data JPA / Hibernate
-- **Database:** PostgreSQL (Neon deployment reference)
-- **Client transport:** HTTP with JSON payloads
-
-## Repository map
-
-```text
+See SDC.md for table notes, relationships, known gaps and safe schema verification queries.
+Technology
+- Mobile and app UI: Flutter / Dart
+- API: Java 21, Spring Boot, Spring MVC
+- Persistence: Spring Data JPA / Hibernate
+- Database: PostgreSQL (Neon deployment reference)
+- Client transport: HTTP with JSON payloads
+Repository map
 SHUBUS-FINAL/
 ├── frontend/              # Combined launcher application
 │   └── lib/                # Entry point and app selection screen
